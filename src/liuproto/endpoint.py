@@ -12,16 +12,18 @@ the reflection coefficient, and :math:`{Z_k}` is composed of band-limited
 Gaussian noise.
 
 The noise signal :math:`Z_{k+1}` is a linear combination of
+two Gaussian noise processes :math:`U_{1}` and :math:`U_{2}`,
 band-limited by zeroing of FFT entries:
 
-:math:`{U_{i,k}}=\mathcal{F}^{-1}\left[\mathcal{F}\left[R_k\right]w[f]\right]`
+ :math:`{U_{i,k}}=\mathcal{F}^{-1}\left[\mathcal{F}\left[R_k\right]w[f]\right]`
 
 where
 
  :math:`w[f] = u[Nf_s-k] + u[k - N(1-f_s)]`
 
-is a weighting function that zeroes the range :math:`[fs,1-fs]`;
-:math:`u[k]` is the Heaviside step function.
+is a weighting function that zeroes the range :math:`[fs,1-fs]`,
+:math:`u[k]` the Heaviside step function, and :math:`R_k` Gaussian
+white noise.
 """
 
 import numpy
@@ -46,23 +48,36 @@ class Physics(object):
 
     def reset(self):
         """Reset the endpoint to its initial random state."""
+
+        # First set the reflection coefficient.  We want to keep the same
+        # magnitude, so flip the sign with probability 0.5.
         if self.random_state.rand() < 0.5:
             self.reflection_coefficient = -self.reflection_coefficient
 
+        # Next generate our band-limited random signal.
         self.random_values = self.__generate_ramped_random_values()
 
+        # Finally, re-zero the correlation accumulator and exchange counter.
         self.correlation_sum = 0.0
 
         self.current_exchange = 0
 
     def __generate_random_values(self):
         """Generate band-limited white noise, returning a real numpy array."""
+
+        # First generate our white Gaussian noise.
         white_noise = self.random_state.randn(self.number_of_exchanges+1)
+
+        # Next, use an FFT to convert to the frequency domain.
         white_noise_frequency_domain = numpy.fft.fft(white_noise)
 
+        # Zero the FFT bins at frequencies above the cutoff.
         cutoff_index = self.cutoff*len(white_noise_frequency_domain)
         white_noise_frequency_domain[cutoff_index:-cutoff_index] = 0.0
 
+        # Finally, apply an IFFT and return the result.  The use of
+        # numpy.real() is necessary here because ifft returns a complex
+        # result, even for a real signal.
         return numpy.real(numpy.fft.ifft(white_noise_frequency_domain))
 
     def __generate_ramped_random_values(self):
@@ -85,21 +100,25 @@ class Physics(object):
                         (numpy.array(n[transition_values]).astype(float)
                             - self.ramp_time/2.0
                             )*numpy.pi/float(self.ramp_time)
-                    )
+                   )
                 )
 
         return ramp
 
     def exchange(self, incoming):
         """Perform a single exchange, returning a floating-point response."""
-        ramp = self.__ramp_function([self.current_exchange])[0]
 
+        # First calculate the reflection coefficient for this exchange.
+        ramp = self.__ramp_function([self.current_exchange])[0]
         ramped_reflection_coefficient = self.reflection_coefficient*ramp
 
+        # Next, if this incoming message is response to one of ours,
+        # attempt to correlate it with our injected signal from last time.
         if self.current_exchange > 0:
             self.correlation_sum += \
                 self.random_values[self.current_exchange - 1] * incoming
 
+        # Finally, construct the response and increment the exchange counter.
         new_message = self.random_values[self.current_exchange] \
                       + incoming*ramped_reflection_coefficient
         self.current_exchange += 1
