@@ -1,5 +1,29 @@
 #!/usr/bin/env python
 
+r"""Liu protocol endpoint implementation.
+
+This module implements a Liu protocol endpoint, including signal
+generation.  In particular, it implements the exchange
+
+    :math:`M_{k+1} = Z_{k+1} + \alpha M_k` ,
+
+where :math:`{M_k}` are the messages sent across the wire, :math:`\alpha` is
+the reflection coefficient, and :math:`{Z_k}` is composed of band-limited
+Gaussian noise.
+
+The noise signal :math:`Z_{k+1}` is a linear combination of
+band-limited by zeroing of FFT entries:
+
+:math:`{U_{i,k}}=\mathcal{F}^{-1}\left[\mathcal{F}\left[R_k\right]w[f]\right]`
+
+where
+
+ :math:`w[f] = u[Nf_s-k] + u[k - N(1-f_s)]`
+
+is a weighting function that zeroes the range :math:`[fs,1-fs]`;
+:math:`u[k]` is the Heaviside step function.
+"""
+
 import numpy
 import numpy.random
 import numpy.fft
