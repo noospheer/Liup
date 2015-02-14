@@ -41,17 +41,50 @@ if __name__ == '__main__':
         '-n', '--exchanges',
         type=int,
         help="The number of exchanges to simulate.",
-        default=1,
+        default=10,
         choices=[Positives()])
+
+    parser.add_argument(
+        '-rc', '--reflection-coefficient',
+        type=float,
+        help="The magnitude of the reflection coefficient.",
+        default=0.5,
+        choices=[Range(0, 1, precision=1)])
 
     parser.add_argument(
         '-fs', '--cutoff',
         type=float,
-        help="The cutoff digital frequency of the input processes.",
+        help="The digital cutoff frequency of the input processes.",
         default=0.5,
         choices=[Range(0, 0.5, precision=1)])
 
+    parser.add_argument(
+        '-tr', '--ramptime',
+        type=float,
+        help="The length of time over which the parameters are ramped up.",
+        default=1,
+        choices=[Positives()])
+
+    parser.add_argument(
+        '-r', '--repetitions',
+        type=int,
+        help="The number of times to run the protocol.",
+        default=1,
+        choices=[Positives()])
 
     args = parser.parse_args()
 
-    print args.cutoff
+    physics_a = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime)
+    physics_b = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime)
+
+    link = liuproto.internallink.InternalLink(physics_a, physics_b)
+
+    results = []
+    for i in range(args.repetitions):
+        results.append(link.run_proto())
+
+    errors = len([1 for x in results if x is not None and x[0] != x[1]])
+    if len(results) > 0:
+        print 'BER: %e' % (float(errors)/len(results))
+    else:
+        print 'No successful exchanges.'
