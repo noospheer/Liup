@@ -9,3 +9,7 @@ package { 'cmake':
 package { 'python-numpy':
   ensure => installed,
 }
+
+package { 'ipython':
+  ensure => installed,
+}
