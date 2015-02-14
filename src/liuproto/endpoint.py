@@ -29,6 +29,7 @@ white noise.
 import numpy
 import numpy.random
 import numpy.fft
+import json
 
 
 class Physics(object):
@@ -128,3 +129,23 @@ class Physics(object):
     def estimate_other(self):
         """Estimate the state of the other endpoint, returning a boolean."""
         return self.correlation_sum > 0
+
+    def to_json(self):
+        """Export a JSON representation of the endpoint parameters."""
+        return json.dumps({
+            'number_of_exchanges': self.number_of_exchanges,
+            'reflection_coefficient': abs(self.reflection_coefficient),
+            'cutoff': self.cutoff,
+            'ramp_time': self.ramp_time
+        })
+
+    @staticmethod
+    def from_json(option_string):
+        """Create a new Physics object from an exported JSON string."""
+        options = json.loads(option_string)
+
+        return Physics(
+            options['number_of_exchanges'],
+            options['reflection_coefficient'],
+            options['cutoff'],
+            options['ramp_time'])

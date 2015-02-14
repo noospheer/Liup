@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 
+import endpoint
 
 class InternalLink(object):
     """A link controller for two endpoints in the same process."""
-    def __init__(self, physics_A, physics_B):
-
-        self.physics_A = physics_A
-        self.physics_B = physics_B
+    def __init__(self, physics):
+        self.physics_A = physics
+        self.physics_B = endpoint.Physics.from_json(physics.to_json())
         self.messages = []
 
     def run_proto(self):
