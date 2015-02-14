@@ -3,7 +3,7 @@
 import argparse
 
 import liuproto.endpoint
-import liuproto.internallink
+import liuproto.link
 
 class Range(object):
     def __init__(self, start, end, precision=None):
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime)
-    link = liuproto.internallink.InternalLink(physics)
+    link = liuproto.link.InternalLink(physics)
 
     results = []
     for i in range(args.repetitions):
