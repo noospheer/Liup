@@ -91,18 +91,19 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
 
 class NetworkServerLink(object):
+    """ A link class for a network-accessible server."""
     def __init__(self, address):
         self.server = SocketServer.TCPServer(address, NetworkLinkRequestHandler)
         self.server.physics = []
 
     def run_proto(self):
         self.server.handle_request()
-        retval = []
 
         return self.server.physics
 
 
 class NetworkClientLink(object):
+    """A client-side link class."""
     def __init__(self, address, physics):
         self.address = address
         self.physics = physics
