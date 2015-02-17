@@ -54,6 +54,8 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
             if config == '{}':
                 return
 
+            self.request.send('{}')
+
             # Now that we have a valid configuration string, produce our
             # endpoint.
             physics = endpoint.Physics.from_json(config)
@@ -114,6 +116,8 @@ class NetworkClientLink(object):
         self.physics.reset()
 
         self.client_socket.send(self.physics.to_json())
+        self.__read_json_string(self.client_socket)
+
         self.client_socket.send(json.dumps({'message': self.physics.exchange(0.0)}))
         for i in range(self.physics.number_of_exchanges):
             message = json.loads(self.__read_json_string(self.client_socket))
