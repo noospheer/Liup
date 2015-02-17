@@ -13,3 +13,7 @@ package { 'python-numpy':
 package { 'ipython':
   ensure => installed,
 }
+
+package { 'libxml2-utils':
+  ensure => installed,
+}

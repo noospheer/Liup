@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+
+<session link="internal" xmlns="http://www.noosphere.org/liuproto">
+    <run id="1">
+        <endpoint id="alice"
+                  reflection_coefficient="0.5"
+                  cutoff="0.5"
+                  ramp_time="2"/>
+        <endpoint id="bob"
+                  reflection_coefficient="-0.5"
+                  cutoff="0.5"
+                  ramp_time="2"/>
+
+        <message from="alice" to="bob"  >1.2345678</message>
+        <message from="bob"   to="alice">0.1234567</message>
+        <message from="alice" to="bob"  >1.3425245</message>
+    </run>
+
+    <run id="2">
+        <endpoint id="alice"
+                  reflection_coefficient="0.5"
+                  cutoff="0.5"
+                  ramp_time="2"/>
+        <endpoint id="bob"
+                  reflection_coefficient="-0.5"
+                  cutoff="0.5"
+                  ramp_time="2"/>
+
+        <message from="alice" to="bob"  >1.2345678</message>
+        <message from="bob"   to="alice">0.1234567</message>
+        <message from="alice" to="bob"  >1.3425245</message>
+    </run>
+</session>
