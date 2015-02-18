@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import endpoint
+import storage
 import SocketServer
 import socket
 import json
@@ -9,10 +10,16 @@ import sys
 
 class InternalLink(object):
     """A link controller for two endpoints in the same process."""
-    def __init__(self, physics):
+    def __init__(self, physics, storage=None):
+
+        self.physics_config = physics.to_json()
+
         self.physics_A = physics
-        self.physics_B = endpoint.Physics.from_json(physics.to_json())
+        self.physics_B = endpoint.Physics.from_json(self.physics_config)
         self.messages = []
+        self.storage = storage
+
+        self.run_count = 0
 
     def run_proto(self):
         """Run a single iteration of the protocol."""
@@ -20,26 +27,49 @@ class InternalLink(object):
         self.physics_A.reset()
         self.physics_B.reset()
 
+        if self.storage is not None:
+            this_run = storage.Run(
+                self.run_count,
+                storage.Endpoint('Alice', self.physics_A.to_json(insecure=True)),
+                storage.Endpoint('Bob', self.physics_B.to_json(insecure=True)))
+
+            self.run_count += 1
+
         self.messages = []
 
         self.messages.append(self.physics_A.exchange(0.0))
+        if self.storage is not None:
+            this_run.add_message(
+                storage.Message('Alice', 'Bob', self.messages[-1]))
 
         for i in range(self.physics_A.number_of_exchanges):
             self.messages.append(self.physics_B.exchange(self.messages[-1]))
             self.messages.append(self.physics_A.exchange(self.messages[-1]))
 
+            if self.storage is not None:
+                this_run.add_message(
+                    storage.Message('Bob', 'Alice', self.messages[-2]))
+                this_run.add_message(
+                    storage.Message('Alice', 'Bob', self.messages[-1]))
+
         if not (self.physics_A.estimate_other()
                     ^ (self.physics_A.reflection_coefficient > 0)):
-            return None
+            result = (None,None)
 
         elif not (self.physics_B.estimate_other()
                     ^ (self.physics_B.reflection_coefficient > 0)):
-            return None
+            result = (None,None)
 
         else:
-            return (not self.physics_A.estimate_other(),
+            result = (not self.physics_A.estimate_other(),
                     self.physics_B.estimate_other())
 
+        if self.storage is not None:
+            this_run.add_result('Alice', result[0])
+            this_run.add_result('Bob', result[1])
+            self.storage.add_run(this_run)
+
+        return result
 
 class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
     """A server implementing the Liu protocol over the network"""

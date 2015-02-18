@@ -29,5 +29,8 @@
         <message from="alice" to="bob"  >1.2345678</message>
         <message from="bob"   to="alice">0.1234567</message>
         <message from="alice" to="bob"  >1.3425245</message>
+
+        <result endpoint="alice">0</result>
+        <result endpoint="bob">1</result>
     </run>
 </session>

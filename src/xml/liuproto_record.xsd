@@ -5,6 +5,16 @@
            xmlns="http://www.noosphere.org/liuproto"
            elementFormDefault="qualified">
 
+    <xs:simpleType name="empty">
+        <xs:restriction base="xs:string">
+            <xs:length value="0"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="optional_boolean">
+        <xs:union memberTypes="empty xs:boolean"/>
+    </xs:simpleType>
+
     <xs:element name="session">
         <xs:complexType>
             <xs:sequence>
@@ -51,6 +61,26 @@
                                     </xs:simpleContent>
                                 </xs:complexType>
                             </xs:element>
+
+                            <xs:element
+                                    name="result"
+                                    minOccurs="0"
+                                    maxOccurs="2"
+                                    nillable="true">
+
+                                <xs:complexType>
+                                    <xs:simpleContent>
+                                        <xs:extension base="optional_boolean">
+                                            <xs:attribute
+                                                    name="endpoint"
+                                                    type="xs:string"
+                                                    />
+                                        </xs:extension>
+                                    </xs:simpleContent>
+                                </xs:complexType>
+                            </xs:element>
+
+
                         </xs:sequence>
 
                         <xs:attribute name="id" />

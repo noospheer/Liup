@@ -130,11 +130,19 @@ class Physics(object):
         """Estimate the state of the other endpoint, returning a boolean."""
         return self.correlation_sum > 0
 
-    def to_json(self):
+    def to_json(self, insecure=False):
         """Export a JSON representation of the endpoint parameters."""
+
+        # For logging purposes we need the ability to export the sign of the
+        # reflection coefficient.
+        if insecure:
+            reflection_coefficient = self.reflection_coefficient
+        else:
+            reflection_coefficient = abs(self.reflection_coefficient)
+
         return json.dumps({
             'number_of_exchanges': self.number_of_exchanges,
-            'reflection_coefficient': abs(self.reflection_coefficient),
+            'reflection_coefficient': reflection_coefficient,
             'cutoff': self.cutoff,
             'ramp_time': self.ramp_time
         })

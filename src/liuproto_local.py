@@ -4,6 +4,8 @@ import argparse
 
 import liuproto.endpoint
 import liuproto.link
+import liuproto.storage
+
 
 class Range(object):
     def __init__(self, start, end, precision=None):
@@ -74,15 +76,19 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    storage = liuproto.storage.Session('internal')
+
     physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime)
-    link = liuproto.link.InternalLink(physics)
+    link = liuproto.link.InternalLink(physics, storage=storage)
 
     results = []
     for i in range(args.repetitions):
         results.append(link.run_proto())
 
     errors = len([1 for x in results if x is not None and x[0] != x[1]])
-    if len(results) > 0:
-        print 'BER: %e' % (float(errors)/len(results))
-    else:
-        print 'No successful exchanges.'
+    #if len(results) > 0:
+    #    print 'BER: %e' % (float(errors)/len(results))
+    #else:
+    #    print 'No successful exchanges.'
+
+    print storage.xml
