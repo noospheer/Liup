@@ -86,6 +86,7 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
             if config == '{}':
                 return
 
+            # Send a response to the configuration string.
             self.request.send('{}')
 
             # Now that we have a valid configuration string, produce our
@@ -113,21 +114,38 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
             message = json.loads(self.__read_json_string())
             physics.exchange(message['message'])
-            self.request.send('{}')
+
             if self.server.storage is not None:
                 this_run.add_message(storage.Message('Alice', 'Bob', message['message']))
 
-            if physics.estimate_other() != (physics.reflection_coefficient > 0):
-                self.server.physics.append(physics.estimate_other())
-                if self.server.storage is not None:
-                    this_run.add_result(storage.Result('Bob', physics.estimate_other()))
-            else:
-                self.server.physics.append(None)
-                if self.server.storage is not None:
-                    this_run.add_result(storage.Result('Bob', None))
+            # We may now decide on whether to declare a zero, one, or erasure.
+            if physics.estimate_other() \
+                    != (physics.reflection_coefficient > 0):
 
+                result = physics.estimate_other()
+            else:
+                result = None
+
+            # Now that we have have decided whether or not to declare a bit,
+            # we must agree this with the client.
+            message = json.loads(self.__read_json_string())
+
+            if result is None:
+                self.request.send('{"decision":"discard"}')
+            else:
+                self.request.send('{"decision":"declare"}')
+
+            if message['decision'] == 'discard':
+                result = None
+
+            self.server.physics.append(result)
             if self.server.storage is not None:
+                this_run.add_result(storage.Result('Bob', result))
                 self.server.storage.add_run(this_run)
+
+            # Send the final response.
+            self.request.send('{}')
+
 
     def __read_json_string(self):
         json_string = ''
@@ -202,8 +220,6 @@ class NetworkClientLink(object):
                 this_run.add_message(storage.Message('Bob', 'Alice', message['message']))
                 this_run.add_message(storage.Message('Alice', 'Bob', response))
 
-        self.__read_json_string(self.client_socket)
-
         if self.physics.estimate_other() \
                 == (self.physics.reflection_coefficient > 0):
 
@@ -211,10 +227,24 @@ class NetworkClientLink(object):
         else:
             result = self.physics.reflection_coefficient > 0
 
+        # Now that we have have decided whether or not to declare a bit,
+        # we must agree this with the client.
+        if result is None:
+            self.client_socket.send('{"decision":"discard"}')
+        else:
+            self.client_socket.send('{"decision":"declare"}')
+
+        message = json.loads(self.__read_json_string(self.client_socket))
+
+        if message['decision'] == 'discard':
+            result = None
+
         if self.storage is not None:
             this_run.add_result(storage.Result('Alice', result))
+            self.storage.add_run(this_run)
 
-        self.storage.add_run(this_run)
+        # Read the final "resynchronising" response.
+        self.__read_json_string(self.client_socket)
 
         return result
 
