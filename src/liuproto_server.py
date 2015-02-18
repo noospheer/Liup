@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
+import sys
 
 import liuproto.endpoint
 import liuproto.link
@@ -39,6 +40,12 @@ if __name__ == '__main__':
         default=8888,
         choices=[Range(1, 65535)])
 
+    parser.add_argument(
+        '-x', '--xml',
+        help="Produce output in XML format.",
+        action='store_true'
+    )
+
     args = parser.parse_args()
 
     storage = liuproto.storage.Session('server')
@@ -46,8 +53,20 @@ if __name__ == '__main__':
     link = liuproto.link.NetworkServerLink(
         (args.listen_address, args.port),
         storage=storage)
-    link.run_proto()
+    results = link.run_proto()
 
     link.close()
 
-    print storage.xml
+    if args.xml:
+        print storage.xml
+    else:
+        for bit in results:
+            if bit is None:
+                continue
+
+            if bit:
+                sys.stdout.write('1')
+            else:
+                sys.stdout.write('0')
+
+        sys.stdout.write("\n")

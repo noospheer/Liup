@@ -74,6 +74,12 @@ if __name__ == '__main__':
         default=1,
         choices=[Positives()])
 
+    parser.add_argument(
+        '-x', '--xml',
+        help="Produce output in XML format.",
+        action='store_true'
+    )
+
     args = parser.parse_args()
 
     storage = liuproto.storage.Session('internal')
@@ -85,10 +91,11 @@ if __name__ == '__main__':
     for i in range(args.repetitions):
         results.append(link.run_proto())
 
-    errors = len([1 for x in results if x is not None and x[0] != x[1]])
-    #if len(results) > 0:
-    #    print 'BER: %e' % (float(errors)/len(results))
-    #else:
-    #    print 'No successful exchanges.'
-
-    print storage.xml
+    if args.xml:
+        print storage.xml
+    else:
+        errors = len([1 for x in results if x is not None and x[0] != x[1]])
+        if len(results) > 0:
+            print 'BER: %e' % (float(errors)/len(results))
+        else:
+            print 'No successful exchanges.'
