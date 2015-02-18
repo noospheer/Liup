@@ -65,11 +65,12 @@ class InternalLink(object):
                     self.physics_B.estimate_other())
 
         if self.storage is not None:
-            this_run.add_result('Alice', result[0])
-            this_run.add_result('Bob', result[1])
+            this_run.add_result(storage.Result('Alice', result[0]))
+            this_run.add_result(storage.Result('Bob', result[1]))
             self.storage.add_run(this_run)
 
         return result
+
 
 class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
     """A server implementing the Liu protocol over the network"""
@@ -77,6 +78,7 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):
         self.server.physics = []
 
+        run_number = 0
         while True:
 
             config = self.__read_json_string()
@@ -89,23 +91,43 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
             # Now that we have a valid configuration string, produce our
             # endpoint.
             physics = endpoint.Physics.from_json(config)
+            if self.server.storage is not None:
+                this_run = storage.Run(
+                    run_number,
+                    storage.Endpoint('Bob', physics.to_json(insecure=True)))
+
+                run_number += 1
+
 
             # Finally, run the protocol.
             for i in range(physics.number_of_exchanges):
                 message = json.loads(self.__read_json_string())
                 result = physics.exchange(message['message'])
-                sys.stdout.flush()
+
+                if self.server.storage is not None:
+                    this_run.add_message(storage.Message('Alice', 'Bob', message['message']))
+                    this_run.add_message(storage.Message('Bob', 'Alice', result))
+
                 message_out = json.dumps({'message': result})
                 self.request.send(message_out)
 
             message = json.loads(self.__read_json_string())
             physics.exchange(message['message'])
             self.request.send('{}')
+            if self.server.storage is not None:
+                this_run.add_message(storage.Message('Alice', 'Bob', message['message']))
 
             if physics.estimate_other() != (physics.reflection_coefficient > 0):
                 self.server.physics.append(physics.estimate_other())
+                if self.server.storage is not None:
+                    this_run.add_result(storage.Result('Bob', physics.estimate_other()))
             else:
                 self.server.physics.append(None)
+                if self.server.storage is not None:
+                    this_run.add_result(storage.Result('Bob', None))
+
+            if self.server.storage is not None:
+                self.server.storage.add_run(this_run)
 
     def __read_json_string(self):
         json_string = ''
@@ -124,44 +146,79 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
 class NetworkServerLink(object):
     """ A link class for a network-accessible server."""
-    def __init__(self, address):
+    def __init__(self, address, storage=None):
         self.server = SocketServer.TCPServer(address, NetworkLinkRequestHandler)
         self.server.physics = []
+        self.server.storage = storage
 
     def run_proto(self):
         self.server.handle_request()
 
         return self.server.physics
 
+    def close(self):
+        self.server.server_close()
+
 
 class NetworkClientLink(object):
     """A client-side link class."""
-    def __init__(self, address, physics):
+    def __init__(self, address, physics, storage=None):
         self.address = address
         self.physics = physics
+        self.storage = storage
+        self.run_number = 0
+
         self.client_socket = socket.socket()
         self.client_socket.connect(self.address)
 
     def run_proto(self):
         self.physics.reset()
 
+        if self.storage is not None:
+            this_run = storage.Run(
+                self.run_number,
+                storage.Endpoint(
+                    'Alice',
+                     self.physics.to_json(insecure=True)))
+
+            self.run_number += 1
+
         self.client_socket.send(self.physics.to_json())
         self.__read_json_string(self.client_socket)
 
-        self.client_socket.send(json.dumps({'message': self.physics.exchange(0.0)}))
+        message = self.physics.exchange(0.0)
+        self.client_socket.send(json.dumps(
+            {'message': message}))
+
+        if self.storage is not None:
+            this_run.add_message(storage.Message('Alice', 'Bob', message))
+
         for i in range(self.physics.number_of_exchanges):
             message = json.loads(self.__read_json_string(self.client_socket))
+            response = self.physics.exchange(message['message'])
+
             self.client_socket.send(json.dumps({
-                'message': self.physics.exchange(message['message'])}))
+                'message': response}))
+
+            if self.storage is not None:
+                this_run.add_message(storage.Message('Bob', 'Alice', message['message']))
+                this_run.add_message(storage.Message('Alice', 'Bob', response))
 
         self.__read_json_string(self.client_socket)
 
         if self.physics.estimate_other() \
                 == (self.physics.reflection_coefficient > 0):
 
-            return None
+            result = None
         else:
-            return self.physics.reflection_coefficient > 0
+            result = self.physics.reflection_coefficient > 0
+
+        if self.storage is not None:
+            this_run.add_result(storage.Result('Alice', result))
+
+        self.storage.add_run(this_run)
+
+        return result
 
     def close(self):
         self.client_socket.send('{}')

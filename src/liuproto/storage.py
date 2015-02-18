@@ -27,20 +27,22 @@ class Session(object):
 
 
 class Run(object):
-    def __init__(self, id, alice, bob=None):
+    def __init__(self, id, alice=None, bob=None):
         self.id = id
         self.messages = []
-        self.endpoints = [alice]
+        self.endpoints = []
         self.results = []
 
+        if alice is not None:
+            self.endpoints.append(alice)
         if bob is not None:
             self.endpoints.append(bob)
 
     def add_message(self, m):
         self.messages.append(m)
 
-    def add_result(self, endpoint, result):
-        self.results.append(Result(endpoint, result))
+    def add_result(self, result):
+        self.results.append(result)
 
     @property
     def xml(self):
