@@ -5,11 +5,16 @@
         <endpoint id="alice"
                   reflection_coefficient="0.5"
                   cutoff="0.5"
-                  ramp_time="2"/>
+                  ramp_time="2">
+            0.1 0.2 0.3 0.4 0.5
+        </endpoint>
         <endpoint id="bob"
                   reflection_coefficient="-0.5"
                   cutoff="0.5"
-                  ramp_time="2"/>
+                  ramp_time="2">
+
+            0.1 0.2 0.3 0.4 0.5
+        </endpoint>
 
         <message from="alice" to="bob"  >1.2345678</message>
         <message from="bob"   to="alice">0.1234567</message>

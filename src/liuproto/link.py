@@ -30,8 +30,8 @@ class InternalLink(object):
         if self.storage is not None:
             this_run = storage.Run(
                 self.run_count,
-                storage.Endpoint('Alice', self.physics_A.to_json(insecure=True)),
-                storage.Endpoint('Bob', self.physics_B.to_json(insecure=True)))
+                storage.Endpoint('Alice', self.physics_A),
+                storage.Endpoint('Bob', self.physics_B))
 
             self.run_count += 1
 
@@ -94,7 +94,7 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
             if self.server.storage is not None:
                 this_run = storage.Run(
                     run_number,
-                    storage.Endpoint('Bob', physics.to_json(insecure=True)))
+                    storage.Endpoint('Bob', physics))
 
                 run_number += 1
 
@@ -177,9 +177,7 @@ class NetworkClientLink(object):
         if self.storage is not None:
             this_run = storage.Run(
                 self.run_number,
-                storage.Endpoint(
-                    'Alice',
-                     self.physics.to_json(insecure=True)))
+                storage.Endpoint('Alice', self.physics))
 
             self.run_number += 1
 

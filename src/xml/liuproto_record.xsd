@@ -15,6 +15,10 @@
         <xs:union memberTypes="empty xs:boolean"/>
     </xs:simpleType>
 
+    <xs:simpleType name="endpoint_randomness">
+        <xs:list itemType="xs:float"/>
+    </xs:simpleType>
+
     <xs:element name="session">
         <xs:complexType>
             <xs:sequence>
@@ -26,21 +30,28 @@
                                         minOccurs="0"
                                         maxOccurs="2">
                                 <xs:complexType>
-                                    <xs:attribute
-                                            name="id"
-                                            type="xs:string"/>
+                                    <xs:simpleContent>
+                                        <xs:extension
+                                                base="endpoint_randomness">
 
-                                    <xs:attribute
-                                            name="reflection_coefficient"
-                                            type="xs:float"/>
+                                            <xs:attribute
+                                                    name="id"
+                                                    type="xs:string"/>
 
-                                    <xs:attribute
-                                            name="cutoff"
-                                            type="xs:float"/>
+                                            <xs:attribute
+                                                    name="reflection_coefficient"
+                                                    type="xs:float"/>
 
-                                    <xs:attribute
-                                            name="ramp_time"
-                                            type="xs:nonNegativeInteger"/>
+                                            <xs:attribute
+                                                    name="cutoff"
+                                                    type="xs:float"/>
+
+                                            <xs:attribute
+                                                    name="ramp_time"
+                                                    type="xs:nonNegativeInteger"/>
+
+                                        </xs:extension>
+                                    </xs:simpleContent>
                                 </xs:complexType>
                             </xs:element>
 

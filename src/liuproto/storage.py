@@ -66,9 +66,9 @@ class Run(object):
 
 
 class Endpoint(object):
-    def __init__(self, endpoint_id, config):
+    def __init__(self, endpoint_id, physics):
         self.id = endpoint_id
-        self.config = json.loads(config)
+        self.physics = physics
 
     @property
     def xml(self):
@@ -76,12 +76,15 @@ class Endpoint(object):
     id="%s"
     reflection_coefficient="%f"
     cutoff="%f"
-    ramp_time="%d" />""" % (
+    ramp_time="%d">\n\t""" % (
             self.id,
-            self.config['reflection_coefficient'],
-            self.config['cutoff'],
-            self.config['ramp_time'])
+            self.physics.reflection_coefficient,
+            self.physics.cutoff,
+            self.physics.ramp_time)
 
+        result += ' '.join([str(x) for x in self.physics.random_values])
+
+        result += '\n</endpoint>'
         return result
 
 
