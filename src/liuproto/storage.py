@@ -2,6 +2,12 @@
 
 import json
 import sys
+import endpoint
+
+try:
+    import xml.etree.cElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET
 
 
 class Session(object):
@@ -24,6 +30,19 @@ class Session(object):
         result += '</session>'
 
         return result
+
+    @staticmethod
+    def from_xml(element):
+        result = Session(element.attrib['link'])
+        for run in element:
+            result.add_run(Run.from_xml(run))
+
+        return result
+
+    @staticmethod
+    def from_file(filename):
+        tree = ET.ElementTree(file=filename)
+        return Session.from_xml(tree.getroot())
 
 
 class Run(object):
@@ -64,6 +83,20 @@ class Run(object):
 
         return result
 
+    @staticmethod
+    def from_xml(element):
+        run = Run(int(element.attrib['id']))
+
+        for child in element:
+            if child.tag == '{http://www.noosphere.org/liuproto}endpoint':
+                run.endpoints.append(Endpoint.from_xml(child))
+            elif child.tag == '{http://www.noosphere.org/liuproto}message':
+                run.add_message(Message.from_xml(child))
+            elif child.tag == '{http://www.noosphere.org/liuproto}result':
+                run.add_result(Result.from_xml(child))
+
+        return run
+
 
 class Endpoint(object):
     def __init__(self, endpoint_id, physics):
@@ -87,6 +120,25 @@ class Endpoint(object):
         result += '\n</endpoint>'
         return result
 
+    @staticmethod
+    def from_xml(element):
+        randomness = element.text.split()
+
+        physics = endpoint.Physics(
+            len(randomness)-1,
+            float(element.attrib['reflection_coefficient']),
+            float(element.attrib['cutoff']),
+            int(element.attrib['ramp_time']))
+
+        # These needs to be set manually, because Endpoint randomises the
+        # sign of the reflection coefficient.
+        physics.reflection_coefficient =\
+            float(element.attrib['reflection_coefficient'])
+
+        physics.random_values = [float(x) for x in randomness]
+
+        return Endpoint(element.attrib['id'], physics)
+
 
 class Message(object):
     def __init__(self, source, destination, message):
@@ -101,6 +153,13 @@ class Message(object):
             self.destination,
             self.message)
 
+    @staticmethod
+    def from_xml(element):
+        return Message(
+            element.attrib['from'],
+            element.attrib['to'],
+            float(element.text))
+
 
 class Result(object):
     def __init__(self, endpoint, result):
@@ -114,3 +173,17 @@ class Result(object):
                    % (self.endpoint, self.result)
         else:
             return '<result endpoint="%s" />' % self.endpoint
+
+    @staticmethod
+    def from_xml(element):
+        if element.text is None:
+            result = None
+        elif element.text.strip() in ['0','1']:
+            result = int(element.text)
+        elif element.text.strip().lower() in ['true', 'false']:
+            result = bool(element.text)
+
+        return Result(
+            element.attrib['endpoint'],
+            result
+        )
