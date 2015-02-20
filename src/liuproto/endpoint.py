@@ -92,10 +92,18 @@ class Physics(object):
 
     def __ramp_function(self, n):
         """Compute the raised-sine ramp function, returning a numpy array."""
+
+
         ramp = numpy.ones(len(n))
+        if self.ramp_time == 0:
+            return ramp
+
         transition_values = numpy.array(n) < self.ramp_time
         if len(transition_values) == 1:
-            transition_values = 0
+            if transition_values:
+                transition_values = 0
+            else:
+                return ramp
         ramp[transition_values] = \
             0.5*(1+numpy.sin(
                         (numpy.array(n[transition_values]).astype(float)
