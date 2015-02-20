@@ -154,7 +154,7 @@ programs once more, saving their XML output to the filesystem.
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8888 -r 100 -n 20 -x > /home/vagrant/client.xml
+    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8888 -r 1000 -n 10 -x > /home/vagrant/client.xml
 
 Reading XML output files
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -165,7 +165,7 @@ Having done this, we may open a Python shell and read in the XML files::
     >>> session_server = liuproto.storage.Session.from_file('/home/vagrant/server.xml')
     >>> session_client = liuproto.storage.Session.from_file('/home/vagrant/client.xml')
     >>> print len(session_client.runs)
-    100
+    1000
 
 The *Session* objects contain an array of *Run* objects, one for each
 repetition of the protocol.  Each *Run* contains an array of *Result* objects,
@@ -173,15 +173,16 @@ which we can use to estimate the bit error rate::
 
     >>> bits_alice = [run.results[0].result for run in session_client.runs]
     >>> bits_bob = [run.results[0].result for run in session_server.runs]
-    >>> errors = [i for i in range(len(bits_alice)) if bits_alice[i] != bits_bob[i]]
-    >>> float(len(errors))/len(bits_alice)
-    0.03
+    >>> bits_emitted = [x for x in bits_alice if x is not None]
+    >>> bits_error = [i for i in range(len(bits_alice)) if bits_alice[i] != bits_bob[i]]
+    >>> float(len(bits_error))/len(bits_emitted)
+    0.02097902097902098
 
 We can also determine the efficiency of the protocol, the proportion of runs
 that end with a bit being emitted::
 
-    >>> float(len([x for x in bits_alice if x is not None]))/len(bits_alice)
-    0.46
+    >>> float(len(bits_emitted))/len(bits_alice)
+    0.429
 
 An introduction to the Liu key agreement protocol
 -------------------------------------------------
