@@ -22,24 +22,46 @@ Getting started
 ---------------
 
 Our implementation of the Liu key agreement protocol is written in Python,
-and can be accessed both as a Python module or from the command line.
+and can be accessed from the command line.
 In this tutorial, we describe the use of both modes, communicating over
 the network, dumping the results, and comparing them to the those yielded
 by software run within a single process.
 
 Three command-line tools are included to access this functionality:
 
-liuproto_local.py
+*liuproto_local.py*
     Creates two endpoints and completes the specified exchanges locally.
 
-liuproto_client.py
+*liuproto_client.py*
     Creates an endpoint and connects to a server, completing the specified
     exchanges before disconnecting from the server.
 
-liuproto_server.py
+*liuproto_server.py*
     Waits for a client to connect, creates an endpoint---based on
     parameters provided by the client---and executes exchanges until
     the client disconnects.
+
+Setting up the environment
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Our implementation requires both a Python installation and the Numpy
+python module.  For those who do not wish to install these themselves,
+we have included a Vagrant_ configuration that will automatically configure
+a virtual machine.
+
+In order to use this facility, install Vagrant_, Virtualbox_, and an SSH
+client---that provided with Git will suffice---and then run the
+command "*vagrant up*" from the *liucipher/*
+directory.  Vagrant will then download a virtual machine image and install
+the necessary software.
+
+Making sure that the *ssh* command is available from your shell, run the
+command *vagrant ssh*.  This will provide you with a shell within the
+virtual machine.  The project root directory is shared with the
+virtual machine as */vagrant/*.
+
+.. _Vagrant: https://www.vagrantup.com/
+.. _Virtualbox: http://www.virtualbox.org/
 
 Communicating over the network
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -164,16 +186,16 @@ that end with a bit being emitted::
 An introduction to the Liu key agreement protocol
 -------------------------------------------------
 
+.. figure:: figures/protocol-path.svg
+    :align: right
+    :width: 275px
+
 The Liu protocol is a protocol for key agreement over a classical channel.
 Related to the Kish Key Distribution scheme, it functions by transmitting
 a random signal which is mixed with a scaled copy of the received signal.
 By randomly selecting the sign of the scaling factor, a random key can
 be generated.
 
-.. sidebar:: Liu protocol
-
-    .. image:: figures/protocol-path.svg
-        :width: 300px
 
 The messages travelling back and forth are given by
 
@@ -181,7 +203,73 @@ The messages travelling back and forth are given by
     M[2k] &= Z_a[k] + \beta[2k] M[2k-1] \\
     M[2k+1] &= Z_b[k] + \alpha[2k+1] M[2k] ,
 
-from Alice to Bob and vice-versa respectively.
+from Alice to Bob and vice-versa respectively.  By cross-correlating
+message from Bob and Alice with
+with :math:`Z_a` and :math:`Z_b` respectively, Alice and Bob may determine the
+respective values of :math:`\beta` and :math:`\alpha`.
+
+In particular, the estimated signs :math:`\hat{A}` and :math:`\hat{B}` are
+
+.. math::
+    \hat{A} &=
+        \begin{cases}
+            -1, &\left<Z_b, M_{a\rightarrow b} \right> < 0\\
+             +1, & \text{otherwise}
+        \end{cases} \\
+    \hat{B} &=
+        \begin{cases}
+            -1, &\left<Z_a, M_{b\rightarrow a} \right> < 0\\
+             +1, & \text{otherwise},
+        \end{cases}
+
+where :math:`\left<\cdot\right>` denotes the time-averaging operator.
+
+Transient attack countermeasures
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+However, this system is vulnerable to attack due to start-up transients;
+it takes some time to reach steady-state.  In order to combat this,
+we slowly increase the reflection coefficient magnitude from zero
+to its final value; the increase takes the form of a raised sine
+profile starting at zero and smoothly increasing to one at time :math:`T_R`:
+
+
+.. math::
+    \gamma[k] &=
+        \begin{cases}
+            \frac{1}{2} \left[ 1 + \sin(t-T_R/2) \cdot \pi/T_R \right], & 0 \le t < T_R \\
+            1, & t > T_R
+        \end{cases} .
+
+.. image:: figures/ramp-path.svg
+    :align: center
+
+We use this to scale the reflection coefficients, yielding
+
+.. math::
+    \alpha[n] &= \alpha \gamma[n] \\
+    \beta[n] &= \beta \gamma[n] .
+
+Quantisation of the messages is believed by [XXX] to further hamper
+transient attacks by eavesdroppers.
+
+Random number generation
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+We next consider random number generation.  In a practical system, it would
+be necessary to use a true random number generator, however for our purposes
+a pseudo-random number generator is sufficient.  We begin by generating two
+band-limited source processes :math:`U_1` and :math:`U_2`.  The band-limiting
+is performed in the frequency domain by computing the fast Fourier transform,
+zeroing the unwanted frequency components, and computing the inverse
+fast Fourier transform.  These two processes are then combined according
+to the value of the ramping function :math:`\gamma[n]`, yielding
+
+.. math::
+    Z[n] = U_1[n]\sqrt{1-\gamma^2[n]} + U_2[n] \gamma[n] .
+
+The coefficients are chosen in order to produce a process of constant
+variance.
 
 Modules
 =======
@@ -193,7 +281,7 @@ liuproto.endpoint
 
 
 liuproto.link
----------------------
+-------------
 
 .. automodule:: liuproto.link
 
