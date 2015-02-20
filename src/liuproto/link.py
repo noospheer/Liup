@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+"""Implements local and networked links for the Liu protocol implementation.
+"""
+
 import endpoint
 import storage
 import SocketServer

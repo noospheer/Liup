@@ -44,14 +44,17 @@ class RangeInteger(object):
 
 
 class Positives(object):
+    def __init__(self, type='integer'):
+        self.type = type
+
     def __eq__(self, other):
         return other > 0
 
     def __str__(self):
-        return 'positive integer'
+        return 'positive %s' % self.type
 
     def __repr__(self):
-        return 'positive integers'
+        return 'positive %ss' % self.type
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -85,6 +88,13 @@ if __name__ == '__main__':
         choices=[Positives()])
 
     parser.add_argument(
+        '-R', '--resolution',
+        type=float,
+        help="The message quantisation resolution.",
+        default=0,
+        choices=[Positives('float')])
+
+    parser.add_argument(
         '-r', '--repetitions',
         type=int,
         help="The number of times to run the protocol.",
@@ -113,7 +123,7 @@ if __name__ == '__main__':
 
     storage = liuproto.storage.Session('client')
 
-    physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime)
+    physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime, args.resolution)
     link = liuproto.link.NetworkClientLink(
         (args.address, args.port),
         physics,

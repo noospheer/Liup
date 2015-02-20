@@ -34,11 +34,12 @@ import json
 
 class Physics(object):
     """Implementation of an endpoint of the Liu key agreement protocol."""
-    def __init__(self, number_of_exchanges, reflection_coefficient, cutoff, ramp_time, seed=None):
+    def __init__(self, number_of_exchanges, reflection_coefficient, cutoff, ramp_time, resolution, seed=None):
         self.number_of_exchanges = number_of_exchanges
         self.reflection_coefficient = reflection_coefficient
         self.cutoff = cutoff
         self.ramp_time = ramp_time
+        self.resolution = resolution
 
         self.random_state = numpy.random.RandomState(seed=seed)
         self.random_values = []
@@ -132,7 +133,10 @@ class Physics(object):
                       + incoming*ramped_reflection_coefficient
         self.current_exchange += 1
 
-        return new_message
+        if self.resolution > 0:
+            return self.resolution*round(new_message/self.resolution)
+        else:
+            return new_message
 
     def estimate_other(self):
         """Estimate the state of the other endpoint, returning a boolean."""
@@ -152,7 +156,8 @@ class Physics(object):
             'number_of_exchanges': self.number_of_exchanges,
             'reflection_coefficient': reflection_coefficient,
             'cutoff': self.cutoff,
-            'ramp_time': self.ramp_time
+            'ramp_time': self.ramp_time,
+            'resolution': self.resolution
         })
 
     @staticmethod
@@ -164,4 +169,5 @@ class Physics(object):
             options['number_of_exchanges'],
             options['reflection_coefficient'],
             options['cutoff'],
-            options['ramp_time'])
+            options['ramp_time'],
+            options['resolution'])
