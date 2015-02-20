@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-import json
-import sys
+import copy
 import endpoint
 
 try:
@@ -101,7 +100,7 @@ class Run(object):
 class Endpoint(object):
     def __init__(self, endpoint_id, physics):
         self.id = endpoint_id
-        self.physics = physics
+        self.physics = copy.deepcopy(physics)
 
     @property
     def xml(self):
