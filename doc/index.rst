@@ -1,7 +1,7 @@
 Welcome to liuproto's documentation!
 =====================================
 
-Contents:
+This program is motivated by the creation of a digital encryption system for insecure networks which protects users against eavesdroppers with *arbitrary* computing power.
 
 .. toctree::
    :maxdepth: 2
