@@ -131,12 +131,12 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
             # Now that we have have decided whether or not to declare a bit,
             # we must agree this with the client.
-            message = json.loads(self.__read_json_string())
-
             if result is None:
                 self.request.send('{"decision":"discard"}')
             else:
                 self.request.send('{"decision":"declare"}')
+
+            message = json.loads(self.__read_json_string())
 
             if message['decision'] == 'discard':
                 result = None
@@ -232,12 +232,12 @@ class NetworkClientLink(object):
 
         # Now that we have have decided whether or not to declare a bit,
         # we must agree this with the client.
+        message = json.loads(self.__read_json_string(self.client_socket))
+
         if result is None:
             self.client_socket.send('{"decision":"discard"}')
         else:
             self.client_socket.send('{"decision":"declare"}')
-
-        message = json.loads(self.__read_json_string(self.client_socket))
 
         if message['decision'] == 'discard':
             result = None
