@@ -50,6 +50,10 @@
                                                     name="ramp_time"
                                                     type="xs:nonNegativeInteger"/>
 
+                                            <xs:attribute
+                                                    name="resolution"
+                                                    type="xs:float"/>
+
                                         </xs:extension>
                                     </xs:simpleContent>
                                 </xs:complexType>
