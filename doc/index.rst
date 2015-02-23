@@ -272,6 +272,97 @@ to the value of the ramping function :math:`\gamma[n]`, yielding
 The coefficients are chosen in order to produce a process of constant
 variance.
 
+Formats
+-------
+
+Network
+^^^^^^^
+
+The network protocol used by the liuproto module is JSON based, making
+the messages human-readable.  Each iteration of the protocol consists
+of three phases:
+
+1. Configuration
+
+    The client sends a configuration string to the server, which will
+    respond with the string *{}*.  If the client wishes to terminate
+    the session, they may send *{}* in liu of a configuration string.
+
+2. Exchange
+
+    The client sends a JSON message of the form *{"message":1.23456}*, and
+    the server sends a response in the same format.  This is repeated
+    :math:`n` times, after which the client sends one final message of
+    the same form.
+
+3. Agreement
+
+    The server sends a message of either *{"decision":"discard"}* or
+    *{"decision":"declare"}* if the bit is to be discarded or retained
+    respectively.  The client sends a similar message, to which the
+    server responds with an empty message *{}*.
+
+.. image:: figures/network-proto-path.svg
+    :align: center
+
+Storage
+^^^^^^^
+
+Data dumps are in an XML-based format, and include the state of one or more
+endpoints, the messages sent, and the decisions made.   An example:
+
+.. code-block:: xml
+
+    <?xml version="1.0"?>
+
+    <session link="internal" xmlns="http://www.noosphere.org/liuproto">
+        <run id="1">
+            <endpoint id="alice"
+                      reflection_coefficient="0.5"
+                      cutoff="0.5"
+                      ramp_time="2"
+                      resolution="0">
+
+                0.1 0.2 0.3 0.4 0.5
+            </endpoint>
+            <endpoint id="bob"
+                      reflection_coefficient="-0.5"
+                      cutoff="0.5"
+                      ramp_time="2"
+                      resolution="0">
+
+                0.1 0.2 0.3 0.4 0.5
+            </endpoint>
+
+            <message from="alice" to="bob"  >1.2345678</message>
+            <message from="bob"   to="alice">0.1234567</message>
+            <message from="alice" to="bob"  >1.3425245</message>
+        </run>
+
+        <run id="2">
+            <endpoint id="alice"
+                      reflection_coefficient="0.5"
+                      cutoff="0.5"
+                      ramp_time="2"
+                      resolution="0"/>
+            <endpoint id="bob"
+                      reflection_coefficient="-0.5"
+                      cutoff="0.5"
+                      ramp_time="2"
+                      resolution="0"/>
+
+            <message from="alice" to="bob"  >1.2345678</message>
+            <message from="bob"   to="alice">0.1234567</message>
+            <message from="alice" to="bob"  >1.3425245</message>
+
+            <result endpoint="alice">0</result>
+            <result endpoint="bob">1</result>
+        </run>
+    </session>
+
+A schema is located in *src/xml/liuproto_record.xsd* against which the
+output may be validated.
+
 Modules
 =======
 
