@@ -27,17 +27,25 @@ class Range(object):
 
 
 class Positives(object):
-    def __init__(self, type='integer'):
+    def __init__(self, type='integer', zero=False):
         self.type = type
+        self.zero = zero
+        if self.zero:
+            self.desc = 'non-negative'
+        else:
+            self.desc = 'positive'
 
     def __eq__(self, other):
-        return other > 0
+        if self.zero:
+            return other >= 0
+        else:
+            return other > 0
 
     def __str__(self):
-        return 'positive %s' % self.type
+        return '%s %s' % (self.desc, self.type)
 
     def __repr__(self):
-        return 'positive %ss' % self.type
+        return '%s %ss' % (self.desc, self.type)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -75,7 +83,7 @@ if __name__ == '__main__':
         type=float,
         help="The message quantisation resolution.",
         default=0,
-        choices=[Positives('float')])
+        choices=[Positives('float', True)])
 
     parser.add_argument(
         '-r', '--repetitions',
