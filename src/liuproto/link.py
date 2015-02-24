@@ -12,7 +12,12 @@ import sys
 
 
 class InternalLink(object):
-    """A link controller for two endpoints in the same process."""
+    """A link controller for two endpoints in the same process.
+
+    Example: Run 100 iterations of the protocol and return the results
+
+    >>> link = InternalLink(physics, storage)
+    >>> results = [link.run_proto() for i in range(100)]"""
     def __init__(self, physics, storage=None):
 
         self.physics_config = physics.to_json()
@@ -166,7 +171,13 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
 
 class NetworkServerLink(object):
-    """ A link class for a network-accessible server."""
+    """ A link class for a network-accessible server.
+
+        Example: Wait for a connection and then return the session results:
+
+        >>> link = NetworkServerLink(address, storage)
+        >>> bits = link.run_proto()
+"""
     def __init__(self, address, storage=None):
         self.server = SocketServer.TCPServer(address, NetworkLinkRequestHandler)
         self.server.physics = []
@@ -182,7 +193,12 @@ class NetworkServerLink(object):
 
 
 class NetworkClientLink(object):
-    """A client-side link class."""
+    """A client-side link class.
+
+        Example: Run the protocol 100 times
+
+        >>> link = NetworkClientLink(address, endpoint, storage)
+        >>> bits = [link.run_proto() for i in range(100)]"""
     def __init__(self, address, physics, storage=None):
         self.address = address
         self.physics = physics
