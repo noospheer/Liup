@@ -6,8 +6,10 @@
 import liuproto.storage, liuproto.link, liuproto.endpoint
 from pylab import *
 
-for i in range(10):
-    p = liuproto.endpoint.Physics(20000, 0.3, 0.1, 10, 0)
+spectrum = zeros(10000)
+
+for i in range(20):
+    p = liuproto.endpoint.Physics(10000, 0.3, 0.01, 10, 0)
     storage = liuproto.storage.Session('internal')
     link = liuproto.link.InternalLink(p, storage=storage)
     
@@ -29,3 +31,8 @@ for i in range(10):
           mean(messages_ab[:-1]*messages_ba)/var(Z_b), \
           mean(messages_ba*messages_ab[1:])/var(Z_a)), \
         run.results[0].result, run.endpoints[0].physics.reflection_coefficient > 0
+
+    spectrum += (abs(fft(Z_a))**2)
+
+semilogy(spectrum/(i+1))
+show()
