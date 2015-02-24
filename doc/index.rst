@@ -1,7 +1,25 @@
 Welcome to liuproto's documentation!
 =====================================
 
-This program is motivated by the creation of a digital encryption system for insecure networks which protects users against eavesdroppers with *arbitrary* computing power.
+This program is motivated by the creation of a digital encryption system for
+insecure networks which protects users against eavesdroppers with *arbitrary*
+computing power.  It implements the protocol using pseudo-random number
+generators with the aim of providing test data for statistical analysis.
+
+
+
+.. warning::
+    This variation of the protocol
+    *has not been proven information-theoretically secure*,
+    its security still being a matter of debate.
+
+    The implementation uses pseudo-random number generators
+    and does not perform any authentication,
+    and thus **cannot be information-theoretically secure**.
+
+    *Do not
+    under any circumstances rely on this software to provide
+    security*
 
 .. toctree::
    :maxdepth: 2
@@ -251,7 +269,7 @@ We use this to scale the reflection coefficients, yielding
     \alpha[n] &= \alpha \gamma[n] \\
     \beta[n] &= \beta \gamma[n] .
 
-Quantisation of the messages is believed by [XXX] to further hamper
+Quantisation of the messages is believed by [Liu2] to further hamper
 transient attacks by eavesdroppers.
 
 Random number generation
@@ -308,7 +326,8 @@ of three phases:
 Storage
 ^^^^^^^
 
-Data dumps are in an XML-based format, and include the state of one or more
+Data dumps are in an XML-based format, and include the configuration and
+random process :math:`Z[n]` of one or more
 endpoints, the messages sent, and the decisions made.   An example:
 
 .. code-block:: xml
@@ -363,17 +382,14 @@ endpoints, the messages sent, and the decisions made.   An example:
 A schema is located in *src/xml/liuproto_record.xsd* against which the
 output may be validated.
 
-Modules
-=======
+References
+==========
 
-liuproto.endpoint
------------------
+.. [Liu1] Liu, P., A key agreement protocol using band-limited random signals
+            and feedback, *Journal of Lightwave Technology* **27** (23)
+            pp. 65--70, 2009.
+.. [Liu2] Liu, P., Prediction accuracy of band-restricted random signals and
+            security risk in statistical key exchange,
+            *Fluctuations and Noise Letters* **9** (4), pp. 413--422, 2010.
 
-.. automodule:: liuproto.endpoint
-
-
-liuproto.link
--------------
-
-.. automodule:: liuproto.link
 
