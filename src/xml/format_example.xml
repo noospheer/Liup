@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 
-<session link="internal" xmlns="http://www.noosphere.org/liuproto">
+<session link="internal" xmlns="http://www.example.org/liuproto">
     <run id="1">
         <endpoint id="alice"
                   reflection_coefficient="0.5"

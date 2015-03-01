@@ -136,7 +136,7 @@ emitted:
     vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8889 -r 1 -n 5 -x
     <?xml version='1.0'?>
 
-    <session link='client' xmlns='http://www.noosphere.org/liuproto'>
+    <session link='client' xmlns='http://www.example.org/liuproto'>
             <run id="0">
                     <endpoint
                         id="Alice"
@@ -334,7 +334,7 @@ endpoints, the messages sent, and the decisions made.   An example:
 
     <?xml version="1.0"?>
 
-    <session link="internal" xmlns="http://www.noosphere.org/liuproto">
+    <session link="internal" xmlns="http://www.example.org/liuproto">
         <run id="1">
             <endpoint id="alice"
                       reflection_coefficient="0.5"

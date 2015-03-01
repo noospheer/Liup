@@ -21,7 +21,7 @@ class Session(object):
     def xml(self):
         result = """<?xml version='1.0'?>
 
-<session link='%s' xmlns='http://www.noosphere.org/liuproto'>
+<session link='%s' xmlns='http://www.example.org/liuproto'>
 """ % self.linktype
         for run in self.runs:
             result += '\t' + '\n\t'.join(run.xml.split('\n')) + "\n"
@@ -87,11 +87,11 @@ class Run(object):
         run = Run(int(element.attrib['id']))
 
         for child in element:
-            if child.tag == '{http://www.noosphere.org/liuproto}endpoint':
+            if child.tag == '{http://www.example.org/liuproto}endpoint':
                 run.endpoints.append(Endpoint.from_xml(child))
-            elif child.tag == '{http://www.noosphere.org/liuproto}message':
+            elif child.tag == '{http://www.example.org/liuproto}message':
                 run.add_message(Message.from_xml(child))
-            elif child.tag == '{http://www.noosphere.org/liuproto}result':
+            elif child.tag == '{http://www.example.org/liuproto}result':
                 run.add_result(Result.from_xml(child))
 
         return run
