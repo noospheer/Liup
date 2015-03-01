@@ -46,6 +46,8 @@ class Physics(object):
         self.correlation_sum = 0.0
         self.current_exchange = 0
 
+        self.no_reset = False
+
         self.reset()
 
     def reset(self):
@@ -53,7 +55,7 @@ class Physics(object):
 
         # First set the reflection coefficient.  We want to keep the same
         # magnitude, so flip the sign with probability 0.5.
-        if self.random_state.rand() < 0.5:
+        if self.random_state.rand() < 0.5 and not self.no_reset:
             self.reflection_coefficient = -self.reflection_coefficient
 
         # Next generate our band-limited random signal.
