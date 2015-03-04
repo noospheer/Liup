@@ -92,7 +92,7 @@ We begin by starting the server, using *liuproto_server.py*:
 
 The server will begin listening for connections from the local machine
 on port 8888.  The client is contained within *liuproto_client.py*, and
-we run it with the default parameters with 100 repetitions:
+we run it with the default parameters with 100 repetitions (run the client from a separate machine or terminal to avoid mixing up the printed server/client outputs):
 
 .. code-block:: console
 
