@@ -109,12 +109,16 @@ class Endpoint(object):
     reflection_coefficient="%f"
     cutoff="%f"
     ramp_time="%d"
-    resolution="%f">\n\t""" % (
+    resolution="%f"
+    masking_time="%d"
+    masking_magnitude="%f">\n\t""" % (
             self.id,
             self.physics.reflection_coefficient,
             self.physics.cutoff,
             self.physics.ramp_time,
-            self.physics.resolution)
+            self.physics.resolution,
+            self.physics.masking_time,
+            self.physics.masking_magnitude)
 
         result += ' '.join([str(x) for x in self.physics.random_values])
 
@@ -130,7 +134,9 @@ class Endpoint(object):
             float(element.attrib['reflection_coefficient']),
             float(element.attrib['cutoff']),
             int(element.attrib['ramp_time']),
-            int(element.attrib['resolution']))
+            float(element.attrib['resolution']),
+            int(element.attrib['masking_time']),
+            float(element.attrib['masking_magnitude']))
 
         # These needs to be set manually, because Endpoint randomises the
         # sign of the reflection coefficient.

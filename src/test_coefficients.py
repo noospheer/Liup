@@ -12,7 +12,7 @@ Gamma = 0.9
 
 class CorrelationTestWideband(unittest.TestCase):
     def test_wideband(self):
-        p = liuproto.endpoint.Physics(100000, Gamma, 0.5, 10, 0)
+        p = liuproto.endpoint.Physics(100000, Gamma, 0.5, 10, 0, 3, 1.0/4096)
         storage = liuproto.storage.Session('internal')
         link = liuproto.link.InternalLink(p, storage=storage)
 
@@ -48,7 +48,7 @@ class CorrelationTestNarrowband(unittest.TestCase):
         self.narrowband_test(-Gamma, -Gamma)
 
     def narrowband_test(self, ga, gb):
-        p = liuproto.endpoint.Physics(100000, Gamma, 0.005, 10, 0)
+        p = liuproto.endpoint.Physics(100000, Gamma, 0.005, 10, 0, 3, 1.0/4096)
         storage = liuproto.storage.Session('internal')
         link = liuproto.link.InternalLink(p, storage=storage)
 

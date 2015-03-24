@@ -34,15 +34,18 @@ import json
 
 class Physics(object):
     """Implementation of an endpoint of the Liu key agreement protocol."""
-    def __init__(self, number_of_exchanges, reflection_coefficient, cutoff, ramp_time, resolution, seed=None):
+    def __init__(self, number_of_exchanges, reflection_coefficient, cutoff, ramp_time, resolution, masking_time, masking_magnitude, seed=None):
         self.number_of_exchanges = number_of_exchanges
         self.reflection_coefficient = reflection_coefficient
         self.cutoff = cutoff
         self.ramp_time = ramp_time
         self.resolution = resolution
+        self.masking_time = masking_time
+        self.masking_magnitude = masking_magnitude
 
         self.random_state = numpy.random.RandomState(seed=seed)
         self.random_values = []
+        self.masking_noise = []
         self.correlation_sum = 0.0
         self.current_exchange = 0
 
@@ -60,6 +63,14 @@ class Physics(object):
 
         # Next generate our band-limited random signal.
         self.random_values = self.__generate_ramped_random_values()
+
+        # Generate our band-limited masking noise
+        self.masking_noise = \
+            self.__generate_ramped_random_values()*self.masking_magnitude
+
+        self.masking_noise[:self.ramp_time-self.masking_time] = 0.0
+        self.masking_noise[self.ramp_time:] = 0.0
+
 
         # Finally, re-zero the correlation accumulator and exchange counter.
         self.correlation_sum = 0.0
@@ -135,10 +146,13 @@ class Physics(object):
                       + incoming*ramped_reflection_coefficient
         self.current_exchange += 1
 
-        if self.resolution > 0:
-            return self.resolution*round(new_message/self.resolution)
+        if self.resolution > 0 and \
+                    self.masking_noise[self.current_exchange - 1] == 0.0:
+            new_message = self.resolution*round(new_message/self.resolution)
         else:
-            return new_message
+            new_message = new_message
+
+        return new_message + self.masking_noise[self.current_exchange - 1]
 
     def estimate_other(self):
         """Estimate the state of the other endpoint, returning a boolean."""
@@ -159,7 +173,9 @@ class Physics(object):
             'reflection_coefficient': reflection_coefficient,
             'cutoff': self.cutoff,
             'ramp_time': self.ramp_time,
-            'resolution': self.resolution
+            'resolution': self.resolution,
+            'masking_time': self.masking_time,
+            'masking_magnitude': self.masking_magnitude
         })
 
     @staticmethod
@@ -172,4 +188,6 @@ class Physics(object):
             options['reflection_coefficient'],
             options['cutoff'],
             options['ramp_time'],
-            options['resolution'])
+            options['resolution'],
+            options['masking_time'],
+            options['masking_magnitude'])

@@ -98,11 +98,28 @@ if __name__ == '__main__':
         action='store_true'
     )
 
+    parser.add_argument(
+        '-t', '--masking-time',
+        help="Add masking noise at the last N samples of the ramp.",
+        type=float,
+        default=0
+    )
+
+    parser.add_argument(
+        '-M', '--masking-magnitude',
+        help="The magnitude of the masking noise added with -mt.",
+        type=float,
+        default=1.0/4096
+    )
+
     args = parser.parse_args()
 
-    storage = liuproto.storage.Session('internal')
+    if args.xml:
+        storage = liuproto.storage.Session('internal')
+    else:
+        storage = None
 
-    physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime, args.resolution)
+    physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime, args.resolution, args.masking_time, args.masking_magnitude)
     link = liuproto.link.InternalLink(physics, storage=storage)
 
     results = []
