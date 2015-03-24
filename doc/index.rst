@@ -142,7 +142,9 @@ emitted:
                         id="Alice"
                         reflection_coefficient="-0.500000"
                         cutoff="0.500000"
-                        ramp_time="1">
+                        ramp_time="1"
+                        masking_time="0"
+                        masking_magnitude="0.0002">
                             0.902397409878 -0.597093943732 1.85275640696 -0.452991413682 0.335067651819 -0.601199733991
                     </endpoint>
 
@@ -270,7 +272,12 @@ We use this to scale the reflection coefficients, yielding
     \beta[n] &= \beta \gamma[n] .
 
 Quantisation of the messages is believed by [Liu2] to further hamper
-transient attacks by eavesdroppers.
+transient attacks by eavesdroppers.  However, it is claimed that this
+can cause an information leak at the end of the ramp-up process.  As
+a result, during the final samples of the ramp-up phase we disable
+the additional quantisation and add band-limited Gaussian masking
+noise, configurable via the *-t* and *-M* options.  It has been
+suggested than values of 3 and 1/4096 respectively are reasonable.
 
 Random number generation
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -340,7 +347,9 @@ endpoints, the messages sent, and the decisions made.   An example:
                       reflection_coefficient="0.5"
                       cutoff="0.5"
                       ramp_time="2"
-                      resolution="0">
+                      resolution="0"
+                      masking_time="0"
+                      masking_magnitude="0.0002">
 
                 0.1 0.2 0.3 0.4 0.5
             </endpoint>
@@ -348,7 +357,9 @@ endpoints, the messages sent, and the decisions made.   An example:
                       reflection_coefficient="-0.5"
                       cutoff="0.5"
                       ramp_time="2"
-                      resolution="0">
+                      resolution="0"
+                      masking_time="0"
+                      masking_magnitude="0.0002">
 
                 0.1 0.2 0.3 0.4 0.5
             </endpoint>
@@ -363,12 +374,16 @@ endpoints, the messages sent, and the decisions made.   An example:
                       reflection_coefficient="0.5"
                       cutoff="0.5"
                       ramp_time="2"
-                      resolution="0"/>
+                      resolution="0"
+                      masking_time="0"
+                      masking_magnitude="0.0002"/>
             <endpoint id="bob"
                       reflection_coefficient="-0.5"
                       cutoff="0.5"
                       ramp_time="2"
-                      resolution="0"/>
+                      resolution="0"
+                      masking_time="0"
+                      masking_magnitude="0.0002"/>
 
             <message from="alice" to="bob"  >1.2345678</message>
             <message from="bob"   to="alice">0.1234567</message>
