@@ -105,28 +105,11 @@ class Physics(object):
         return u1*numpy.sqrt(1-ramp**2) + u2*ramp
 
     def __ramp_function(self, n):
-        """Compute the raised-sine ramp function, returning a numpy array."""
+        """Compute the exponential ramp function, returning a numpy array."""
 
-
-        ramp = numpy.ones(len(n))
-        if self.ramp_time == 0:
-            return ramp
-
-        transition_values = numpy.array(n) < self.ramp_time
-        if len(transition_values) == 1:
-            if transition_values:
-                transition_values = 0
-            else:
-                return ramp
-        ramp[transition_values] = \
-            0.5*(1+numpy.sin(
-                        (numpy.array(n[transition_values]).astype(float)
-                            - self.ramp_time/2.0
-                            )*numpy.pi/float(self.ramp_time)
-                   )
-                )
-
-        return ramp
+        return 1.0 - numpy.exp(
+                        - numpy.array(n).astype(float)
+                        / float(self.ramp_time))
 
     def exchange(self, incoming):
         """Perform a single exchange, returning a floating-point response."""
