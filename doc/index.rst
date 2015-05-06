@@ -18,9 +18,8 @@ Based on the work of prof. Pao-Lo Liu, U Buffalo [1].
     and does not perform any authentication,
     and thus **cannot be information-theoretically secure**.
 
-    *Do not
-    under any circumstances rely on this software to provide
-    security*
+    *Do not under any circumstances rely on this version of 
+    the software to provide security.*
 
 .. toctree::
    :maxdepth: 2
