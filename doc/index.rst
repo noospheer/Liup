@@ -4,7 +4,8 @@ Welcome to liuproto's documentation!
 This program is motivated by the creation of a digital encryption system for
 insecure networks which protects users against eavesdroppers with *arbitrary*
 computing power.  It implements the protocol using pseudo-random number
-generators with the aim of providing test data for statistical analysis.
+generators with the aim of providing test data for statistical analysis. ---
+Based on the work of prof. Pao-Lo Liu, U Buffalo [1].
 
 
 
@@ -271,7 +272,7 @@ We use this to scale the reflection coefficients, yielding
     \alpha[n] &= \alpha \gamma[n] \\
     \beta[n] &= \beta \gamma[n] .
 
-Quantisation of the messages is believed by [Liu2] to further hamper
+Quantisation of the messages is believed by [2] to further hamper
 transient attacks by eavesdroppers.  However, it is claimed that this
 can cause an information leak at the end of the ramp-up process.  As
 a result, during the final samples of the ramp-up phase we disable
@@ -400,10 +401,10 @@ output may be validated.
 References
 ==========
 
-.. [Liu1] Liu, P., A key agreement protocol using band-limited random signals
+.. [1] Liu, P., A key agreement protocol using band-limited random signals
             and feedback, *Journal of Lightwave Technology* **27** (23)
             pp. 65--70, 2009.
-.. [Liu2] Liu, P., Prediction accuracy of band-restricted random signals and
+.. [2] Liu, P., Prediction accuracy of band-restricted random signals and
             security risk in statistical key exchange,
             *Fluctuations and Noise Letters* **9** (4), pp. 413--422, 2010.
 
