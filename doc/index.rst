@@ -9,7 +9,7 @@ Based on the work of prof. Pao-Lo Liu, U Buffalo [1].
 
 
 
-.. _warning_::
+.. warning::
     This variation of the protocol
     *has not been proven information-theoretically secure*,
     its security still being a matter of debate.
