@@ -107,7 +107,7 @@ The client emits each of the bits agreed on, as will the server:
 
 .. code-block:: console
 
-    liuproto_server.py -l 127.0.0.1 -p 8888
+    python liuproto_server.py -l 127.0.0.1 -p 8888
     111110101011100111101111011010111
 
 It is important to note that these bits will not necessarily be identical;
