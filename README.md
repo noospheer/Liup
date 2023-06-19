@@ -92,7 +92,7 @@ We begin by starting the server, using *liuproto_server.py*:
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_server.py -l 127.0.0.1 -p 8888
+    python liuproto_server.py -l 127.0.0.1 -p 8888
 
 The server will begin listening for connections from the local machine
 on port 8888.  The client is contained within *liuproto_client.py*, and
@@ -100,14 +100,14 @@ we run it with the default parameters with 100 repetitions (run the client from 
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8888 -r 100
+    python liuproto_client.py -a 127.0.0.1 -p 8888 -r 100
     011111001111100101101111011010111
 
 The client emits each of the bits agreed on, as will the server:
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_server.py -l 127.0.0.1 -p 8888
+    liuproto_server.py -l 127.0.0.1 -p 8888
     111110101011100111101111011010111
 
 It is important to note that these bits will not necessarily be identical;
@@ -117,12 +117,12 @@ protocol iteration:
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_server.py -l 127.0.0.1 -p 8888
+    python liuproto_server.py -l 127.0.0.1 -p 8888
     010001100000011011000110000000010001101010111111110001111110
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8888 -r 100 -n 100
+    python liuproto_client.py -a 127.0.0.1 -p 8888 -r 100 -n 100
     010001100000011011000110000000010001101010111111110001111110
 
 In this case there are no errors, as the extra exchanges serve to reduce
@@ -137,7 +137,7 @@ emitted:
 
 .. code-block:: xml
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8889 -r 1 -n 5 -x
+    python liuproto_client.py -a 127.0.0.1 -p 8889 -r 1 -n 5 -x
     <?xml version='1.0'?>
 
     <session link='client' xmlns='http://www.example.org/liuproto'>
@@ -174,11 +174,11 @@ programs once more, saving their XML output to the filesystem.
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_server.py -l 127.0.0.1 -p 8888 -x > /home/vagrant/server.xml
+    python liuproto_server.py -l 127.0.0.1 -p 8888 -x > /home/vagrant/server.xml
 
 .. code-block:: console
 
-    vagrant@vagrant-ubuntu-trusty-64:/vagrant/src$ python liuproto_client.py -a 127.0.0.1 -p 8888 -r 1000 -n 10 -x > /home/vagrant/client.xml
+    python liuproto_client.py -a 127.0.0.1 -p 8888 -r 1000 -n 10 -x > /home/vagrant/client.xml
 
 Reading XML output files
 ^^^^^^^^^^^^^^^^^^^^^^^^
