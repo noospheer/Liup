@@ -3,9 +3,9 @@
 """Implements local and networked links for the Liu protocol implementation.
 """
 
-import endpoint
-import storage
-import SocketServer
+from . import endpoint
+import liuproto.storage as storage
+import socketserver
 import socket
 import json
 import sys
@@ -80,7 +80,7 @@ class InternalLink(object):
         return result
 
 
-class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
+class NetworkLinkRequestHandler(socketserver.BaseRequestHandler):
     """A server implementing the Liu protocol over the network"""
 
     def handle(self):
@@ -88,14 +88,13 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
         run_number = 0
         while True:
-
             config = self.__read_json_string()
 
             if config == '{}':
                 return
 
             # Send a response to the configuration string.
-            self.request.send('{}')
+            self.request.send('{}'.encode('utf-8'))
 
             # Now that we have a valid configuration string, produce our
             # endpoint.
@@ -107,10 +106,10 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
 
                 run_number += 1
 
-
             # Finally, run the protocol.
             for i in range(physics.number_of_exchanges):
                 message = json.loads(self.__read_json_string())
+                print("Received message:", message)  # Add this line to debug
                 result = physics.exchange(message['message'])
 
                 if self.server.storage is not None:
@@ -118,7 +117,7 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
                     this_run.add_message(storage.Message('Bob', 'Alice', result))
 
                 message_out = json.dumps({'message': result})
-                self.request.send(message_out)
+                self.request.send(message_out.encode('utf-8'))
 
             message = json.loads(self.__read_json_string())
             physics.exchange(message['message'])
@@ -127,9 +126,7 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
                 this_run.add_message(storage.Message('Alice', 'Bob', message['message']))
 
             # We may now decide on whether to declare a zero, one, or erasure.
-            if physics.estimate_other() \
-                    != (physics.reflection_coefficient > 0):
-
+            if physics.estimate_other() != (physics.reflection_coefficient > 0):
                 result = physics.estimate_other()
             else:
                 result = None
@@ -137,9 +134,9 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
             # Now that we have have decided whether or not to declare a bit,
             # we must agree this with the client.
             if result is None:
-                self.request.send('{"decision":"discard"}')
+                self.request.send('{"decision":"discard"}'.encode('utf-8'))
             else:
-                self.request.send('{"decision":"declare"}')
+                self.request.send('{"decision":"declare"}'.encode('utf-8'))
 
             message = json.loads(self.__read_json_string())
 
@@ -152,8 +149,7 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
                 self.server.storage.add_run(this_run)
 
             # Send the final response.
-            self.request.send('{}')
-
+            self.request.send('{}'.encode('utf-8'))
 
     def __read_json_string(self):
         json_string = ''
@@ -161,14 +157,13 @@ class NetworkLinkRequestHandler(SocketServer.BaseRequestHandler):
         # Keep reading until we have a valid JSON string.
         while True:
             try:
-                json_string += self.request.recv(1024)
+                json_string += self.request.recv(1024).decode('utf-8')
                 json.loads(json_string)
                 break
             except ValueError:
                 pass
 
         return json_string
-
 
 class NetworkServerLink(object):
     """ A link class for a network-accessible server.
@@ -177,28 +172,29 @@ class NetworkServerLink(object):
 
         >>> link = NetworkServerLink(address, storage)
         >>> bits = link.run_proto()
-"""
+    """
     def __init__(self, address, storage=None):
-        self.server = SocketServer.TCPServer(address, NetworkLinkRequestHandler)
+        self.server = socketserver.TCPServer(address, NetworkLinkRequestHandler)
         self.server.physics = []
         self.server.storage = storage
 
     def run_proto(self):
         self.server.handle_request()
-
         return self.server.physics
 
     def close(self):
         self.server.server_close()
 
 
+
+
 class NetworkClientLink(object):
     """A client-side link class.
 
-        Example: Run the protocol 100 times
+    Example: Run the protocol 100 times
 
-        >>> link = NetworkClientLink(address, endpoint, storage)
-        >>> bits = [link.run_proto() for i in range(100)]"""
+    >>> link = NetworkClientLink(address, endpoint, storage)
+    >>> bits = [link.run_proto() for i in range(100)]"""
     def __init__(self, address, physics, storage=None):
         self.address = address
         self.physics = physics
@@ -218,12 +214,11 @@ class NetworkClientLink(object):
 
             self.run_number += 1
 
-        self.client_socket.send(self.physics.to_json())
+        self.client_socket.send(self.physics.to_json().encode('utf-8'))
         self.__read_json_string(self.client_socket)
 
         message = self.physics.exchange(0.0)
-        self.client_socket.send(json.dumps(
-            {'message': message}))
+        self.client_socket.send(json.dumps({'message': message}).encode('utf-8'))
 
         if self.storage is not None:
             this_run.add_message(storage.Message('Alice', 'Bob', message))
@@ -232,8 +227,7 @@ class NetworkClientLink(object):
             message = json.loads(self.__read_json_string(self.client_socket))
             response = self.physics.exchange(message['message'])
 
-            self.client_socket.send(json.dumps({
-                'message': response}))
+            self.client_socket.send(json.dumps({'message': response}).encode('utf-8'))
 
             if self.storage is not None:
                 this_run.add_message(storage.Message('Bob', 'Alice', message['message']))
@@ -241,19 +235,18 @@ class NetworkClientLink(object):
 
         if self.physics.estimate_other() \
                 == (self.physics.reflection_coefficient > 0):
-
             result = None
         else:
             result = self.physics.reflection_coefficient > 0
 
-        # Now that we have have decided whether or not to declare a bit,
+        # Now that we have decided whether or not to declare a bit,
         # we must agree this with the client.
         message = json.loads(self.__read_json_string(self.client_socket))
 
         if result is None:
-            self.client_socket.send('{"decision":"discard"}')
+            self.client_socket.send('{"decision":"discard"}'.encode('utf-8'))
         else:
-            self.client_socket.send('{"decision":"declare"}')
+            self.client_socket.send('{"decision":"declare"}'.encode('utf-8'))
 
         if message['decision'] == 'discard':
             result = None
@@ -268,7 +261,7 @@ class NetworkClientLink(object):
         return result
 
     def close(self):
-        self.client_socket.send('{}')
+        self.client_socket.send('{}'.encode('utf-8'))
         self.client_socket.close()
 
     def __read_json_string(self, client_socket):
@@ -276,7 +269,7 @@ class NetworkClientLink(object):
 
         # Keep reading until we have a valid JSON string.
         while True:
-            json_string += client_socket.recv(1024)
+            json_string += client_socket.recv(1024).decode('utf-8')
             try:
                 json.loads(json_string)
                 break
