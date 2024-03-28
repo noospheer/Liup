@@ -26,15 +26,15 @@ is a weighting function that zeroes the range :math:`[fs,1-fs]`,
 white noise.
 """
 
-import numpy
-import numpy.random
-import numpy.fft
+import numpy as np
+import os
 import json
-
 
 class Physics(object):
     """Implementation of an endpoint of the Liu key agreement protocol."""
+
     def __init__(self, number_of_exchanges, reflection_coefficient, cutoff, ramp_time, resolution, masking_time, masking_magnitude, seed=None):
+        # Initialize the physics parameters
         self.number_of_exchanges = number_of_exchanges
         self.reflection_coefficient = reflection_coefficient
         self.cutoff = cutoff
@@ -43,98 +43,63 @@ class Physics(object):
         self.masking_time = masking_time
         self.masking_magnitude = masking_magnitude
 
-        self.random_state = numpy.random.RandomState(seed=seed)
+        # Use os.urandom() to seed the NumPy PRNG
+        seed_bytes = os.urandom(32)
+        seed_int = int.from_bytes(seed_bytes, 'big')
+        self.random_state = np.random.default_rng(seed_int)
+
+        # Initialize random values and masking noise
         self.random_values = []
         self.masking_noise = []
         self.correlation_sum = 0.0
         self.current_exchange = 0
-
         self.no_reset = False
-
         self.reset()
 
     def reset(self):
         """Reset the endpoint to its initial random state."""
-
-        # First set the reflection coefficient.  We want to keep the same
-        # magnitude, so flip the sign with probability 0.5.
-        if self.random_state.rand() < 0.5 and not self.no_reset:
+        if self.random_state.random() < 0.5 and not self.no_reset:
             self.reflection_coefficient = -self.reflection_coefficient
-
-        # Next generate our band-limited random signal.
         self.random_values = self.__generate_ramped_random_values()
-
-        # Generate our band-limited masking noise
-        self.masking_noise = \
-            self.__generate_ramped_random_values()*self.masking_magnitude
-
-        self.masking_noise[:self.ramp_time-self.masking_time] = 0.0
+        self.masking_noise = self.__generate_ramped_random_values() * self.masking_magnitude
+        self.masking_noise[:self.ramp_time - self.masking_time] = 0.0
         self.masking_noise[self.ramp_time:] = 0.0
-
-
-        # Finally, re-zero the correlation accumulator and exchange counter.
         self.correlation_sum = 0.0
-
         self.current_exchange = 0
 
     def __generate_random_values(self):
         """Generate band-limited white noise, returning a real numpy array."""
-
-        # First generate our white Gaussian noise.
-        white_noise = self.random_state.randn(self.number_of_exchanges+1)
-
-        # Next, use an FFT to convert to the frequency domain.
-        white_noise_frequency_domain = numpy.fft.fft(white_noise)
-
-        # Zero the FFT bins at frequencies above the cutoff.
-        cutoff_index = self.cutoff*len(white_noise_frequency_domain)
+        white_noise = self.random_state.standard_normal(self.number_of_exchanges + 1)
+        white_noise_frequency_domain = np.fft.fft(white_noise)
+        cutoff_index = int(self.number_of_exchanges * self.cutoff)
         white_noise_frequency_domain[cutoff_index:-cutoff_index] = 0.0
-
-        # Finally, apply an IFFT and return the result.  The use of
-        # numpy.real() is necessary here because ifft returns a complex
-        # result, even for a real signal.
-        return numpy.real(numpy.fft.ifft(white_noise_frequency_domain))
+        return np.real(np.fft.ifft(white_noise_frequency_domain))
 
     def __generate_ramped_random_values(self):
         """Generate ramped random processes, returning a numpy array."""
         u1 = self.__generate_random_values()
         u2 = self.__generate_random_values()
-
-        ramp = self.__ramp_function(numpy.arange(len(u1)))
-
-        return u1*numpy.sqrt(1-ramp**2) + u2*ramp
+        ramp = self.__ramp_function(np.arange(len(u1)))
+        return u1 * np.sqrt(1 - ramp ** 2) + u2 * ramp
 
     def __ramp_function(self, n):
         """Compute the exponential ramp function, returning a numpy array."""
+        n_array = np.array(n)  # Convert the list to a NumPy array
+        return 1.0 - np.exp(-n_array.astype(float) / float(self.ramp_time))
 
-        return 1.0 - numpy.exp(
-                        - numpy.array(n).astype(float)
-                        / float(self.ramp_time))
 
     def exchange(self, incoming):
         """Perform a single exchange, returning a floating-point response."""
-
-        # First calculate the reflection coefficient for this exchange.
         ramp = self.__ramp_function([self.current_exchange])[0]
-        ramped_reflection_coefficient = self.reflection_coefficient*ramp
-
-        # Next, if this incoming message is response to one of ours,
-        # attempt to correlate it with our injected signal from last time.
+        ramped_reflection_coefficient = self.reflection_coefficient * ramp
         if self.current_exchange > 0:
-            self.correlation_sum += \
-                self.random_values[self.current_exchange - 1] * incoming
-
-        # Finally, construct the response and increment the exchange counter.
-        new_message = self.random_values[self.current_exchange] \
-                      + incoming*ramped_reflection_coefficient
+            self.correlation_sum += self.random_values[self.current_exchange - 1] * incoming
+        new_message = self.random_values[self.current_exchange] + incoming * ramped_reflection_coefficient
         self.current_exchange += 1
-
-        if self.resolution > 0 and \
-                    self.masking_noise[self.current_exchange - 1] == 0.0:
-            new_message = self.resolution*round(new_message/self.resolution)
+        if self.resolution > 0 and self.masking_noise[self.current_exchange - 1] == 0.0:
+            new_message = self.resolution * round(new_message / self.resolution)
         else:
             new_message = new_message
-
         return new_message + self.masking_noise[self.current_exchange - 1]
 
     def estimate_other(self):
@@ -143,14 +108,10 @@ class Physics(object):
 
     def to_json(self, insecure=False):
         """Export a JSON representation of the endpoint parameters."""
-
-        # For logging purposes we need the ability to export the sign of the
-        # reflection coefficient.
         if insecure:
             reflection_coefficient = self.reflection_coefficient
         else:
             reflection_coefficient = abs(self.reflection_coefficient)
-
         return json.dumps({
             'number_of_exchanges': self.number_of_exchanges,
             'reflection_coefficient': reflection_coefficient,
@@ -165,7 +126,6 @@ class Physics(object):
     def from_json(option_string):
         """Create a new Physics object from an exported JSON string."""
         options = json.loads(option_string)
-
         return Physics(
             options['number_of_exchanges'],
             options['reflection_coefficient'],
@@ -173,4 +133,5 @@ class Physics(object):
             options['ramp_time'],
             options['resolution'],
             options['masking_time'],
-            options['masking_magnitude'])
+            options['masking_magnitude']
+        )
