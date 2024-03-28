@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import sys
@@ -8,20 +8,14 @@ import liuproto.link
 import liuproto.storage
 
 
-class Range(object):
-    def __init__(self, start, end):
-        self.start = start
-        self.end = end
-        self.format = '%d--%d'
+class PortRangeAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        min_port = 1
+        max_port = 65535
+        if not min_port <= values <= max_port:
+            raise argparse.ArgumentTypeError(f"Port number must be between {min_port} and {max_port}")
+        setattr(namespace, self.dest, values)
 
-    def __eq__(self, other):
-        return self.start <= other <= self.end
-
-    def __str__(self):
-        return (self.format % (self.start, self.end)) + ' inclusive'
-
-    def __repr__(self):
-        return self.format % (self.start, self.end)
 
 
 if __name__ == '__main__':
@@ -38,7 +32,9 @@ if __name__ == '__main__':
         type=int,
         help="The port upon which to listen.",
         default=8888,
-        choices=[Range(1, 65535)])
+        action=PortRangeAction
+    )
+
 
     parser.add_argument(
         '-x', '--xml',
@@ -58,7 +54,7 @@ if __name__ == '__main__':
     link.close()
 
     if args.xml:
-        print storage.xml
+        print(storage.xml)
     else:
         for bit in results:
             if bit is None:
