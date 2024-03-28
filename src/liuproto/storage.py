@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 import copy
-import endpoint
+from . import endpoint
+
 
 try:
     import xml.etree.cElementTree as ET
