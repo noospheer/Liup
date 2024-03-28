@@ -2,6 +2,7 @@
 
 import argparse
 import sys
+import json  # Import json module
 
 import liuproto.endpoint
 import liuproto.link
@@ -164,7 +165,7 @@ if __name__ == '__main__':
     link.close()
 
     if args.xml:
-        print storage.xml
+        print(storage.xml)
     else:
         for bit in results:
             if bit is None:
@@ -176,3 +177,4 @@ if __name__ == '__main__':
                 sys.stdout.write('0')
 
         sys.stdout.write("\n")
+
