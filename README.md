@@ -461,17 +461,87 @@ For any realistic adversary -- even one with nation-state resources -- `os.urand
 
 #### Mode 2: RDSEED + Toeplitz extraction (`--rdseed`)
 
-This mode uses Intel/AMD's RDSEED instruction followed by Toeplitz hashing for the strongest randomness available on commodity hardware.
+This mode uses Intel/AMD's RDSEED instruction followed by Toeplitz hashing for the strongest randomness available on commodity hardware. It is "practically ITS" under a single mild structural assumption.
 
-**How it works**:
-1. **RDSEED** reads from the CPU's hardware entropy source (thermal noise in the jitter of a ring oscillator), but the raw analog noise is not directly accessible. Intel conditions it through an AES-CBC-MAC before exposing it via RDSEED. The conditioning key is public (burned into silicon), so this step provides no cryptographic secrecy -- it is purely an entropy conditioner.
-2. **Toeplitz extraction** (seeded from the PSK) provides defense-in-depth. A 256x512 binary Toeplitz matrix (defined by 96 bytes of PSK) extracts 256 output bits from every 512 RDSEED bits with a 2:1 compression ratio. This is a strong randomness extractor: if the input has min-entropy > 256 bits per 512-bit block, the output is statistically close to uniform.
+##### The three-stage pipeline
 
-**The remaining assumption**: AES-CBC-MAC (the hardware conditioner) does not destroy entropy. This is an extremely mild assumption -- AES-CBC-MAC is a well-studied construction, and entropy destruction would require a catastrophic weakness in AES itself (not just a distinguisher, but a structural collapse). No such weakness is known or expected.
+```
+Physical entropy   →   AES-CBC-MAC conditioner   →   Toeplitz extraction   →   Protocol
+(thermal jitter)       (hardware, public key)         (seeded from PSK)        (sign bits)
+```
 
-**Why RDSEED + Toeplitz is near-ITS but not formally ITS**: A formally unbounded adversary could, in principle, analyze the physical entropy source and its AES-CBC-MAC conditioning to extract correlations. The Toeplitz extractor eliminates these correlations *if* the conditioned output has sufficient min-entropy -- which depends on AES-CBC-MAC not destroying entropy. With a dedicated external TRNG (no conditioning step), no such assumption is needed.
+1. **Physical entropy source.** Intel/AMD CPUs contain a ring oscillator whose thermal jitter produces true analog randomness. This raw noise is inaccessible via any instruction — the CPU's digital random number generator (DRNG) consumes it internally.
 
-**Why not RDRAND?** RDRAND uses AES-128-CTR (a CSPRNG with a 128-bit seed), which is strictly weaker than os.urandom()'s ChaCha20 with a 256-bit seed. RDSEED taps the entropy *before* the CSPRNG expansion step.
+2. **AES-CBC-MAC conditioner (hardware).** The DRNG feeds the raw jitter through an AES-CBC-MAC conditioner to remove bias and ensure uniform output. The conditioning key is public (burned into silicon at manufacture), so this step provides **no cryptographic secrecy** — it is a deterministic entropy conditioner, not an encryption step. RDSEED exposes the conditioned output directly, before any CSPRNG expansion.
+
+3. **Toeplitz extraction (software, seeded from PSK).** We apply a 2:1 Toeplitz extraction: a 256×512 binary Toeplitz matrix (defined by 96 bytes drawn from the PSK) maps every 512 RDSEED bits to 256 output bits. The Toeplitz seed is part of the pre-shared secret and is unknown to the adversary.
+
+##### Why Toeplitz extraction is necessary — why not use pure RDSEED?
+
+Pure RDSEED output has passed through a deterministic function (AES-CBC-MAC) with a **public key**. An unbounded adversary knows this key and can compute AES. If the physical source had any exploitable structure — biased bits, correlated samples, predictable jitter patterns — the adversary could potentially invert or correlate the conditioned output, since the conditioner provides no secrecy barrier.
+
+Toeplitz extraction closes this gap through the **leftover hash lemma** (a cornerstone result in information-theoretic cryptography [4]): if the input has sufficient min-entropy H_∞, and the extraction function is chosen from a family of universal hash functions (which Toeplitz matrices are), then the output is within statistical distance 2^{-(H_∞ - output_length)/2} of the uniform distribution — regardless of the adversary's computational power.
+
+Concretely:
+- Each 512-bit RDSEED block is compressed to 256 output bits (2:1 ratio)
+- If the RDSEED block has min-entropy > 256 + 2k bits, the output is within 2^{-k} of uniform
+- For k = 128 (our target), we need min-entropy > 512 bits per 512-bit block — i.e., essentially full entropy
+- The Toeplitz seed is secret (from the PSK), so the adversary does not know which hash function was chosen
+
+In short: **RDSEED provides the raw entropy. Toeplitz extraction provides the information-theoretic guarantee.** Neither alone is sufficient — RDSEED alone has no secrecy barrier against an unbounded adversary, and Toeplitz extraction alone has no entropy to extract.
+
+##### The remaining assumption and why it is mild
+
+The single remaining assumption is:
+
+> **AES-CBC-MAC (the hardware conditioner) does not destroy entropy.**
+
+That is: the conditioned RDSEED output retains sufficient min-entropy from the physical source. This is a **structural** assumption about AES, not a **computational** one. The distinction is critical:
+
+| | Computational assumption | Structural assumption |
+|---|---|---|
+| **Claim** | AES is hard to invert/distinguish | AES does not collapse entropy |
+| **Broken by** | Faster algorithms (unbounded compute) | A catastrophic structural defect in AES |
+| **Example attack** | Brute-force all 2^128 keys | AES maps all inputs to a tiny output set |
+| **Status** | Breakable in the ITS model by definition | No known or conjectured attack path |
+
+An unbounded adversary trivially breaks computational assumptions — they can enumerate all AES keys, invert any function, distinguish any CSPRNG from random. But this does not help them break a structural assumption. Being able to compute AES (which an unbounded adversary can) tells you nothing about whether AES destroys entropy. An unbounded adversary who knows the AES key and can evaluate AES on every input still cannot extract information from the Toeplitz-extracted output unless the conditioner destroyed the min-entropy that the physical source provided.
+
+##### Why there is no known path to breaking this
+
+For the RDSEED + Toeplitz pipeline to fail, one of the following would need to be true:
+
+1. **The physical entropy source is defective.** The ring oscillator produces insufficient jitter, or the jitter is predictable. This is an engineering/manufacturing concern, not a cryptographic one. Intel's DRNG design has been extensively analyzed (see SP 800-90B evaluations). Commodity CPUs routinely produce full-entropy jitter.
+
+2. **AES-CBC-MAC destroys entropy.** This would require AES to have a catastrophic structural property far beyond any known weakness:
+   - AES would need to map a large fraction of its input space to a small output set (massive collisions), or
+   - The CBC-MAC chaining would need to cause entropy collapse across blocks
+
+   After 25+ years of intensive cryptanalysis, no such property has been found. The best known structural results on AES are:
+   - Algebraic attacks: reduce AES to polynomial systems, but solving them requires exponential time (no entropy implication)
+   - Related-key attacks: exploit key schedule weaknesses, irrelevant here (the key is fixed)
+   - Impossible differentials: rule out certain differential paths, but do not imply entropy destruction
+   - Biclique attacks: marginally reduce brute-force complexity, no structural entropy implication
+
+   None of these come remotely close to suggesting that AES destroys entropy. Entropy destruction is not a "slightly weaker" version of known AES weaknesses — it is an entirely different category of failure, orthogonal to all known cryptanalytic techniques.
+
+3. **The Toeplitz extraction is flawed.** The leftover hash lemma is a theorem (not a conjecture), and Toeplitz matrices are provably 2-universal hash families. The extraction guarantee is unconditional given sufficient input min-entropy. Our implementation processes 512→256 bit blocks using GF(2) matrix-vector multiplication (AND + popcount), which is exact arithmetic with no floating-point error.
+
+In summary: breaking this pipeline would require either (a) a hardware manufacturing defect in the entropy source, or (b) discovering that AES has a catastrophic entropy-destroying property that 25 years of cryptanalysis have not hinted at. There is no incremental research path from current AES analysis toward such a result — it would represent a completely unexpected structural collapse.
+
+##### Comparison: computational vs structural security
+
+| Property | os.urandom (computational) | RDSEED + Toeplitz (structural) |
+|---|---|---|
+| **Assumption** | ChaCha20 is a good PRF | AES-CBC-MAC preserves entropy |
+| **Breaks if** | A faster algorithm exists | AES has catastrophic structure |
+| **ITS adversary can** | Enumerate all 2^256 seeds | Compute AES (but this doesn't help) |
+| **Known attack path** | Yes (brute force, permitted in ITS model) | No known or conjectured path |
+| **Security level** | Computationally unbreakable | Practically ITS |
+
+The key insight is that an unbounded adversary has a clear attack strategy against `os.urandom()` — enumerate CSPRNG seeds — even though this attack is physically impossible. Against RDSEED + Toeplitz, there is no such strategy. The adversary can compute AES, but computing AES does not reveal whether it destroyed entropy. The adversary would need to know something about the physical entropy source's output, and the Toeplitz extraction (with a secret seed) ensures that even partial knowledge of the RDSEED output does not translate into knowledge of the extracted bits.
+
+**Why not RDRAND?** RDRAND uses AES-128-CTR (a CSPRNG with a 128-bit seed) to expand the conditioned entropy. This is strictly weaker than os.urandom()'s ChaCha20 with a 256-bit seed — an unbounded adversary enumerates 2^128 seeds (vs 2^256 for ChaCha20). RDSEED taps the entropy *before* this CSPRNG expansion, which is why it is suitable for near-ITS use.
 
 **PSK size**: RDSEED mode requires 96 extra bytes in the PSK for the Toeplitz extraction seed (total: 32 + ceil(B/8) + 96 bytes).
 
