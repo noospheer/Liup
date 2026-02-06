@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
 
 ## Abstract
 
-Building on the foundational work of Pau-Lo Liu [1, 2], who demonstrated that information-theoretic security can be achieved through band-limited Gaussian noise exchange, we present an extended implementation suitable for classical TCP/IP networks. Two parties sharing a finite pre-shared key (PSK) of ~12.5 KB can generate an **unlimited stream** of information-theoretically secure (ITS) key material at ~3 Mbps, secure against active man-in-the-middle attackers with unbounded computational power. Where Liu's original protocol assumed physical channels and passive eavesdroppers, this implementation adds authenticated message exchange, active attack resistance, and a pool recycling mechanism for infinite key generation—all while preserving the information-theoretic guarantees. The protocol requires no quantum channel, no computational hardness assumptions, and no key material beyond the initial PSK. Security rests on two assumptions: (1) access to true randomness, and (2) one shared secret established out-of-band. We provide a complete implementation with 147 passing tests, formal security bounds, and a hybrid-game composition proof for the key recycling mechanism.
+Building on the foundational work of Pau-Lo Liu [1, 2], who demonstrated that information-theoretic security can be achieved through band-limited Gaussian noise exchange, we present an extended implementation suitable for classical TCP/IP networks. Two parties sharing a finite pre-shared key (PSK) of ~12.5 KB can generate an **unlimited stream** of information-theoretically secure (ITS) key material at ~3 Mbps, secure against active man-in-the-middle attackers with unbounded computational power. Where Liu's original protocol assumed physical channels and passive eavesdroppers, this implementation adds authenticated message exchange, active attack resistance, and a pool recycling mechanism for infinite key generation—all while preserving the information-theoretic guarantees. The protocol requires no quantum channel, no computational hardness assumptions, and no key material beyond the initial PSK. Security rests on two assumptions: (1) access to true randomness, and (2) one shared secret established out-of-band. We provide a complete implementation with 162 passing tests, formal security bounds, and a hybrid-game composition proof for the key recycling mechanism.
 
 ---
 
@@ -54,7 +54,7 @@ This implementation builds on the key agreement protocol introduced by Pau-Lo Li
 | PSK reuse safety | Session nonce XOR'd into MAC keys prevents cross-session attacks |
 | Infinite key generation | Pool recycling with hybrid-game composition proof |
 | Sign-bit extraction | Simplified key extraction using only sign bits (1 bit/channel, cleaner security analysis) |
-| Complete implementation | 147 tests, formal bounds, working demo |
+| Complete implementation | 162 tests, formal bounds, working demo |
 
 The result is a protocol suitable for deployment over public digital channels (TCP/IP), secure against active attackers with unbounded computational power, generating unlimited ITS key material from a single ~12.5 KB pre-shared secret.
 
@@ -63,7 +63,7 @@ The result is a protocol suitable for deployment over public digital channels (T
 1. **Full ITS against active attackers**: Confidentiality, authentication, and key agreement integrity—all information-theoretic.
 2. **Infinite key from finite PSK**: Pool recycling with provable composition security.
 3. **Practical throughput**: ~3 Mbps of secure key material on commodity hardware.
-4. **Complete implementation**: 147 tests covering all security properties.
+4. **Complete implementation**: 162 tests covering all security properties.
 
 ---
 
@@ -190,7 +190,7 @@ At σ/p = 2, B = 100,000:
 
 The ITS guarantee requires exactly two assumptions:
 
-1. **True randomness.** Both parties have access to a true random number generator. The current implementation uses `os.urandom()`, which is seeded from hardware entropy but expanded via ChaCha20. In practice, this remains secure even against unlimited computation—the adversary cannot predict outputs without access to the CSPRNG state on your machine. The theoretical distinction matters only if you require formal ITS proofs; see Section 8.1 for details.
+1. **True randomness.** Both parties have access to a true random number generator. The implementation offers two modes: `os.urandom()` (ChaCha20 CSPRNG, computationally secure) and RDSEED + Toeplitz extraction (near-ITS, requiring only the mild assumption that AES-CBC-MAC does not destroy entropy). See Section 8.1 for the full comparison and security analysis of each mode.
 
 2. **One shared secret.** The PSK must be established through an out-of-band authenticated channel before protocol execution. See Section 8.4.
 
@@ -214,8 +214,10 @@ Run this to see the protocol in action:
 
 ```bash
 cd src
-python demo.py           # Single batch: generates 1M bits
-python demo.py --stream  # Continuous: realtime stats, Ctrl+C to stop
+python demo.py --urandom           # Single batch: generates 1M bits (CSPRNG)
+python demo.py --rdseed            # Single batch: generates 1M bits (RDSEED + Toeplitz)
+python demo.py --urandom --stream  # Continuous: realtime stats, Ctrl+C to stop
+python demo.py --rdseed --stream   # Continuous with RDSEED + Toeplitz
 ```
 
 Or paste this into Python:
@@ -294,6 +296,7 @@ result = client.run_signbit_nopa(
     n_batches=1,        # Batches per connection (default: 1)
     mod_mult=0.5,       # Security parameter: 0.5 → σ/p=2 (recommended)
     n_test_rounds=2,    # σ verification rounds (0 to skip)
+    rng_mode='urandom', # 'urandom' (default) or 'rdseed' (RDSEED + Toeplitz)
 )
 
 # Result contains:
@@ -301,18 +304,21 @@ result['secure_bits']      # The ITS key (numpy array of 0s and 1s)
 result['sigma_verified']   # True if σ/p was verified
 ```
 
+**Note on `rng_mode`**: When using `rng_mode='rdseed'`, the PSK must be 96 bytes longer than usual (for the Toeplitz extraction seed). The rdseed mode requires a CPU with RDSEED support (Intel Broadwell+ / AMD Zen+). See Section 8.1 for the security analysis of each mode.
+
 ### 5.5 Running Tests
 
 ```bash
 cd src
 python -m pytest test_security.py -v -k "not TestUniformity"
-# 147 passed
+# 162 passed
 ```
 
 Key test classes:
 - `TestSigmaVerification`: 15 tests for active MITM protection
 - `TestSignbitNoPA`: 7 tests for pool-flat infinite operation
 - `TestSignbitProtocol`: 7 tests for signbit-ITS with PA
+- `TestRdseedMode`: 15 tests for RDSEED + Toeplitz extraction mode
 
 ---
 
@@ -337,9 +343,11 @@ The protocol achieves near-optimal theoretical efficiency:
 
 | Metric | Value |
 |--------|-------|
-| Throughput | ~2–3 Mbps secure key |
-| PSK size | 32 + ⌈B/8⌉ bytes (~12.5 KB for B=100k) |
-| Network overhead | 1.5 RTTs per batch, ~1.3 key bits/network byte |
+| Throughput (urandom) | ~2–3 Mbps secure key |
+| Throughput (rdseed) | ~0.2 Mbps secure key |
+| PSK size (urandom) | 32 + ⌈B/8⌉ bytes (~12.5 KB for B=100k) |
+| PSK size (rdseed) | 32 + ⌈B/8⌉ + 96 bytes (~12.6 KB for B=100k) |
+| Network overhead | 1.5 RTTs for key exchange (+ 1 RTT config, + 4 RTTs if σ verification enabled), ~17 network bytes/key bit |
 | Optimal batch size | B = 100,000 (fits L3 cache) |
 
 **Compute breakdown** (localhost, B=100k):
@@ -362,9 +370,9 @@ The protocol achieves near-optimal theoretical efficiency:
 | **This protocol** | ~2–3 Mbps | ITS | CPU + TRNG | True randomness |
 
 **Key observations**:
-- **vs QKD**: 300–3000× faster, no quantum hardware, works over any TCP/IP path. Trade-off: requires pre-shared secret (QKD can bootstrap from scratch with quantum channel).
-- **vs computational crypto**: ~1000× slower, which is the inherent cost of ITS—you cannot achieve unconditional security at computational speeds.
-- **vs OTP**: OTP consumes 1 bit of key per bit of message. This protocol generates unlimited key from ~12.5 KB of PSK.
+- **vs QKD**: For key *amplification* from an existing shared secret, 300–3000× faster than QKD, with no quantum hardware, over any TCP/IP path. Critical trade-off: this protocol **cannot bootstrap from scratch**—it requires a pre-shared secret established out-of-band, whereas QKD can establish a key from scratch using a quantum channel (see Section 8.4).
+- **vs computational crypto**: ~1000× slower, which is the inherent cost of ITS—you cannot achieve unconditional security at computational speeds. Note that AES-GCM performs *encryption* (a local operation), while this protocol performs *key agreement* (requiring network round-trips); these are different primitives.
+- **vs OTP**: OTP consumes 1 bit of key per bit of message. This protocol generates unlimited key from ~12.5 KB of PSK—with information-theoretic security, not computational assumptions. (Generating unlimited output from a finite seed is standard for stream ciphers like ChaCha20; the novelty here is achieving ITS while doing so.)
 
 ### 6.4 Path to Higher Throughput
 
@@ -412,6 +420,8 @@ The ~3–10× residual gap even with custom silicon is the unavoidable cost of i
 ```
 liuproto/
   link.py            Protocol implementation (signbit_nopa, signbit_its, parallel_its)
+  _fastrand.c        C extension: Box-Muller, RDSEED, Toeplitz extraction
+  _fastrand.so       Compiled shared library (gcc -O3 -march=native)
   endpoint.py        Physics simulation (Gaussian noise, modular reduction)
   security_proof.py  Formal bounds (composition_security_bound, wrapped_gaussian_tv_bound)
   privacy.py         Toeplitz hashing (GF(2) block PA)
@@ -425,21 +435,49 @@ liuproto/
 
 ### 8.1 Randomness Source
 
-The current implementation uses `os.urandom()`, which on Linux is a hybrid system:
+The implementation supports two randomness modes, selectable via `rng_mode`:
+
+| Source | ITS-valid? | Throughput | Assumption | Flag |
+|--------|-----------|------------|------------|------|
+| Dedicated TRNG | Yes | Varies | None | (not yet supported) |
+| **RDSEED + Toeplitz** | **Near-ITS** | **~0.2 Mbps** | **AES-CBC-MAC doesn't destroy entropy** | `--rdseed` |
+| os.urandom() | No (computational) | ~2-3 Mbps | ChaCha20 is a good PRF | `--urandom` |
+| RDRAND | No | -- | AES-128-CTR (128-bit, worse than urandom) | (not supported) |
+
+#### Mode 1: `os.urandom()` (default, `--urandom`)
+
+On Linux, `os.urandom()` is a hybrid system:
 - **Entropy pool**: Seeded from real hardware noise (interrupt timing, thermal jitter, RDRAND)
 - **Output expansion**: ChaCha20 CSPRNG stretches the entropy pool
 
-**Practical security**: An adversary with unlimited computation *still cannot break this* because:
-1. They don't have access to the CSPRNG state (it's on Alice/Bob's machines)
-2. The state is seeded from hardware events they never observed
-3. Distinguishing ChaCha20 from true random ≠ predicting outputs without the state
-4. The PSK (12.5 KB = 100,000 bits) cannot be brute-forced regardless of compute power
+**Practical security**: An adversary who cannot access the CSPRNG state on Alice/Bob's machines cannot predict outputs, because:
+1. The state is seeded from hardware entropy events they never observed
+2. Without the state, distinguishing ChaCha20 output from true random does not help predict specific values
+3. The seed space (~256-512 bits) cannot be brute-forced by any physically realizable computer
 
-**Theoretical ITS concern**: The formal ITS guarantee assumes true randomness. With `os.urandom()`, security depends on:
-- Sufficient entropy in the kernel pool at generation time
-- No side-channel leakage of CSPRNG state
+For any realistic adversary -- even one with nation-state resources -- `os.urandom()` is unbreakable.
 
-**For strict ITS**: Replace `os.urandom()` with a hardware TRNG (thermal noise, shot noise, or quantum RNG) that outputs raw entropy without CSPRNG expansion.
+**Why this is not formal ITS**: The formal ITS model grants the adversary unbounded computation. Such an adversary enumerates all 2^256 possible CSPRNG seeds, computes the output sequence for each, and checks which candidate is consistent with observed wire values. This lets her recover all sign bits. The attack is absurdly infeasible in practice, but it is *permitted* in the ITS model.
+
+#### Mode 2: RDSEED + Toeplitz extraction (`--rdseed`)
+
+This mode uses Intel/AMD's RDSEED instruction followed by Toeplitz hashing for the strongest randomness available on commodity hardware.
+
+**How it works**:
+1. **RDSEED** reads from the CPU's hardware entropy source (thermal noise in the jitter of a ring oscillator), but the raw analog noise is not directly accessible. Intel conditions it through an AES-CBC-MAC before exposing it via RDSEED. The conditioning key is public (burned into silicon), so this step provides no cryptographic secrecy -- it is purely an entropy conditioner.
+2. **Toeplitz extraction** (seeded from the PSK) provides defense-in-depth. A 256x512 binary Toeplitz matrix (defined by 96 bytes of PSK) extracts 256 output bits from every 512 RDSEED bits with a 2:1 compression ratio. This is a strong randomness extractor: if the input has min-entropy > 256 bits per 512-bit block, the output is statistically close to uniform.
+
+**The remaining assumption**: AES-CBC-MAC (the hardware conditioner) does not destroy entropy. This is an extremely mild assumption -- AES-CBC-MAC is a well-studied construction, and entropy destruction would require a catastrophic weakness in AES itself (not just a distinguisher, but a structural collapse). No such weakness is known or expected.
+
+**Why RDSEED + Toeplitz is near-ITS but not formally ITS**: A formally unbounded adversary could, in principle, analyze the physical entropy source and its AES-CBC-MAC conditioning to extract correlations. The Toeplitz extractor eliminates these correlations *if* the conditioned output has sufficient min-entropy -- which depends on AES-CBC-MAC not destroying entropy. With a dedicated external TRNG (no conditioning step), no such assumption is needed.
+
+**Why not RDRAND?** RDRAND uses AES-128-CTR (a CSPRNG with a 128-bit seed), which is strictly weaker than os.urandom()'s ChaCha20 with a 256-bit seed. RDSEED taps the entropy *before* the CSPRNG expansion step.
+
+**PSK size**: RDSEED mode requires 96 extra bytes in the PSK for the Toeplitz extraction seed (total: 32 + ceil(B/8) + 96 bytes).
+
+#### For strict ITS
+
+Replace the randomness source with a dedicated hardware TRNG (thermal noise, shot noise, or quantum RNG) that outputs raw entropy without any deterministic conditioning step.
 
 ### 8.2 Implementation Maturity
 

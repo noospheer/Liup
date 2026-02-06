@@ -25,11 +25,20 @@ import ctypes as _ctypes
 # Try to load the C extension for fast noise generation.
 # Falls back to pure Python/numpy if unavailable.
 _fastrand_lib = None
+_has_rdseed = False
 try:
     _so_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_fastrand.so')
     _fastrand_lib = _ctypes.CDLL(_so_path)
     _fastrand_lib.batch_gaussian.restype = _ctypes.c_int
     _fastrand_lib.batch_gaussian.argtypes = [_ctypes.c_void_p, _ctypes.c_int]
+    _fastrand_lib.has_rdseed.restype = _ctypes.c_int
+    _fastrand_lib.batch_rdseed.restype = _ctypes.c_int
+    _fastrand_lib.batch_rdseed.argtypes = [_ctypes.c_void_p, _ctypes.c_int]
+    _fastrand_lib.toeplitz_extract.restype = _ctypes.c_int
+    _fastrand_lib.toeplitz_extract.argtypes = [
+        _ctypes.c_void_p, _ctypes.c_int,
+        _ctypes.c_void_p, _ctypes.c_void_p]
+    _has_rdseed = bool(_fastrand_lib.has_rdseed())
 except (OSError, AttributeError):
     _fastrand_lib = None
 
@@ -309,22 +318,142 @@ def _compute_r_powers(n, r):
     return powers
 
 
-def _batch_true_random_gaussian(n, B):
+def _batch_rdseed_raw(n_bytes):
+    """Read n_bytes of raw RDSEED output via the C extension.
+
+    Returns bytes.  Raises RuntimeError if RDSEED is unavailable or fails.
+    """
+    if not _has_rdseed or _fastrand_lib is None:
+        raise RuntimeError(
+            "RDSEED not available (CPU does not support it or C extension missing)")
+    buf = (_ctypes.c_uint8 * n_bytes)()
+    ret = _fastrand_lib.batch_rdseed(buf, n_bytes)
+    if ret != 0:
+        raise RuntimeError("RDSEED failed after retries")
+    return bytes(buf)
+
+
+# Toeplitz matrix cache (for numpy fallback path only)
+_toeplitz_cache = {}
+
+
+def _toeplitz_extract(raw_bytes, seed_bytes, ratio=2):
+    """Block-wise Toeplitz extraction: 512-bit blocks -> 256-bit output blocks.
+
+    Uses the C extension (_fastrand.so) for ~100x speedup over numpy.
+    Falls back to pure numpy if C extension is unavailable.
+
+    Parameters
+    ----------
+    raw_bytes : bytes
+        Input bytes (must be a multiple of 64 = 512/8).
+    seed_bytes : bytes
+        96 bytes (767 bits) defining the Toeplitz matrix rows.
+    ratio : int
+        Compression ratio (default 2: 512 -> 256 bits per block).
+
+    Returns
+    -------
+    bytes
+        Extracted output (half the length of raw_bytes).
+    """
+    in_bits = 512
+    out_bits = in_bits // ratio  # 256
+    block_bytes_in = in_bits // 8  # 64
+    block_bytes_out = out_bits // 8  # 32
+
+    n_blocks = len(raw_bytes) // block_bytes_in
+    if n_blocks == 0:
+        return b''
+
+    # Fast C path: AND + popcount per row, ~100x faster than numpy
+    if _fastrand_lib is not None:
+        out_size = n_blocks * block_bytes_out
+        out_buf = (_ctypes.c_uint8 * out_size)()
+        ret = _fastrand_lib.toeplitz_extract(
+            raw_bytes, n_blocks * block_bytes_in,
+            seed_bytes, out_buf)
+        if ret > 0:
+            return bytes(out_buf)[:ret]
+
+    # Numpy fallback
+    cache_key = seed_bytes
+    if cache_key not in _toeplitz_cache:
+        seed_bits = np.unpackbits(np.frombuffer(seed_bytes[:96], dtype=np.uint8))
+        n_seed = in_bits + out_bits - 1  # 767
+        seed_bits = seed_bits[:n_seed]
+        rows = np.empty((out_bits, in_bits), dtype=np.int16)
+        for i in range(out_bits):
+            rows[i] = seed_bits[i:i + in_bits].astype(np.int16)
+        _toeplitz_cache[cache_key] = rows
+    toeplitz = _toeplitz_cache[cache_key]
+
+    raw_arr = np.frombuffer(raw_bytes[:n_blocks * block_bytes_in], dtype=np.uint8)
+    bits_in = np.unpackbits(raw_arr).reshape(n_blocks, in_bits).astype(np.int16)
+    bits_out = (bits_in @ toeplitz.T) % 2
+    return np.packbits(bits_out.astype(np.uint8).ravel()).tobytes()[:n_blocks * block_bytes_out]
+
+
+def _rng_bytes(n_bytes, rng_mode='urandom', toeplitz_seed=None):
+    """Unified random byte generation for sign bits and nonces.
+
+    Parameters
+    ----------
+    n_bytes : int
+        Number of output bytes.
+    rng_mode : str
+        'urandom' or 'rdseed'.
+    toeplitz_seed : bytes or None
+        96-byte seed for Toeplitz extraction (required for rdseed mode).
+
+    Returns
+    -------
+    bytes
+    """
+    if rng_mode == 'rdseed':
+        # Toeplitz works in 64-byte input blocks (512 bits) -> 32-byte output blocks.
+        # Round up RDSEED request to ensure enough full blocks after extraction.
+        n_out_blocks = (n_bytes + 31) // 32  # ceil(n_bytes / 32)
+        raw_needed = n_out_blocks * 64  # 2:1 ratio
+        raw = _batch_rdseed_raw(raw_needed)
+        return _toeplitz_extract(raw, toeplitz_seed)[:n_bytes]
+    return os.urandom(n_bytes)
+
+
+def _batch_true_random_gaussian(n, B, rng_mode='urandom', toeplitz_seed=None):
     """Generate B x n IID standard Gaussians via Box-Muller with getrandom().
 
     Uses the C extension (_fastrand.so) when available for ~2x speedup.
     Falls back to pure numpy otherwise.  Both paths use the same entropy
     source (Linux urandom pool via getrandom / os.urandom).
+
+    Parameters
+    ----------
+    n : int
+        Number of columns.
+    B : int
+        Number of rows (channels).
+    rng_mode : str
+        'urandom' (default) or 'rdseed'.
+    toeplitz_seed : bytes or None
+        96-byte seed for Toeplitz extraction (required for rdseed mode).
     """
     total = B * n
-    if _fastrand_lib is not None:
+    if rng_mode == 'urandom' and _fastrand_lib is not None:
         out = np.empty(total, dtype=np.float64)
         ret = _fastrand_lib.batch_gaussian(out.ctypes.data, total)
         if ret == 0:
             return out.reshape(B, n)
         # Fall through to Python implementation on error
     n_pairs = (total + 1) // 2
-    raw = os.urandom(n_pairs * 16)
+    raw_needed = n_pairs * 16
+    if rng_mode == 'rdseed':
+        # Round up to full 64-byte Toeplitz input blocks (2:1 ratio)
+        n_out_blocks = (raw_needed + 31) // 32
+        rdseed_raw = _batch_rdseed_raw(n_out_blocks * 64)
+        raw = _toeplitz_extract(rdseed_raw, toeplitz_seed)[:raw_needed]
+    else:
+        raw = os.urandom(raw_needed)
     u64 = np.frombuffer(raw, dtype=np.uint64)
     scale = np.float64(1.0 / (2**64))
     u1 = (u64[0::2] * scale).copy()
@@ -523,18 +652,21 @@ def _check_wire_uniformity(wire_values, p, n_bins=16):
     return chi2
 
 
-def _validate_signbit_nopa_psk(psk, B):
+def _validate_signbit_nopa_psk(psk, B, rng_mode='urandom'):
     """Validate PSK length for signbit no-PA protocol.
 
     Minimum PSK: 32 bytes header + ceil(B/8) bytes for first run OTP.
+    In rdseed mode, 96 extra bytes are required for the Toeplitz seed.
     B must be >= 128 for MAC key recycling from output.
     """
     if B < 128:
         raise ValueError("B must be >= 128 for MAC key recycling, got %d" % B)
     required = 32 + _math.ceil(B / 8)
+    if rng_mode == 'rdseed':
+        required += 96  # Toeplitz seed bytes
     if not isinstance(psk, (bytes, bytearray)) or len(psk) < required:
-        raise ValueError("PSK must be >= %d bytes for signbit no-PA with B=%d"
-                         % (required, B))
+        raise ValueError("PSK must be >= %d bytes for signbit no-PA with B=%d (rng_mode=%s)"
+                         % (required, B, rng_mode))
 
 
 class _SignbitPool:
@@ -2169,8 +2301,15 @@ class NetworkLinkRequestHandler(socketserver.BaseRequestHandler):
         n_bits = config_dict.get('n_bits', 4)
         range_sigma = config_dict.get('range_sigma', 4.0)
         n_test_rounds = config_dict.get('n_test_rounds', 0)
+        rng_mode = config_dict.get('rng_mode', 'urandom')
 
-        _validate_signbit_nopa_psk(psk, B)
+        _validate_signbit_nopa_psk(psk, B, rng_mode=rng_mode)
+
+        # Extract Toeplitz seed from PSK if rdseed mode
+        toeplitz_seed = None
+        if rng_mode == 'rdseed':
+            toeplitz_offset = 32 + _math.ceil(B / 8)
+            toeplitz_seed = psk[toeplitz_offset:toeplitz_offset + 96]
 
         sigma_z = _leakage_mod.estimate_sigma_z(cutoff)
         p = mod_mult * sigma_z
@@ -2213,8 +2352,11 @@ class NetworkLinkRequestHandler(socketserver.BaseRequestHandler):
                     dtype=np.float64)
 
                 # Generate Bob's noise and sign bits
-                Z_b = sigma_z * _batch_true_random_gaussian(1, B)
-                bob_sign_raw = np.frombuffer(os.urandom(B), dtype=np.uint8) & 1
+                Z_b = sigma_z * _batch_true_random_gaussian(1, B,
+                          rng_mode=rng_mode, toeplitz_seed=toeplitz_seed)
+                bob_sign_raw = np.frombuffer(
+                    _rng_bytes(B, rng_mode=rng_mode, toeplitz_seed=toeplitz_seed),
+                    dtype=np.uint8) & 1
 
                 # Encrypt Bob's signs with OTP from pool
                 bob_otps = pool.withdraw_otp(B)
@@ -3758,7 +3900,8 @@ class NetworkClientLink(object):
     def run_signbit_nopa(self, B=100000, n_runs=10, n_batches=1,
                          cutoff=0.1, mod_mult=0.5,
                          n_bits=4, range_sigma=4.0,
-                         n_test_rounds=_DEFAULT_N_TEST_ROUNDS):
+                         n_test_rounds=_DEFAULT_N_TEST_ROUNDS,
+                         rng_mode='urandom'):
         """Run sign-bit no-PA protocol over the network.
 
         No privacy amplification — raw sign bits are the key.  Pool stays
@@ -3784,6 +3927,11 @@ class NetworkClientLink(object):
         n_test_rounds : int
             Number of committed test rounds at session start (default 2).
             Set to 0 to skip committed verification.
+        rng_mode : str
+            Randomness source: 'urandom' (default) or 'rdseed'.
+            'rdseed' uses Intel RDSEED + Toeplitz extraction for near-ITS
+            randomness.  Requires CPU with RDSEED support and 96 extra
+            bytes in PSK for the Toeplitz seed.
 
         Returns
         -------
@@ -3806,7 +3954,8 @@ class NetworkClientLink(object):
             B=B, n_runs=n_runs, n_batches=n_batches,
             cutoff=cutoff, mod_mult=mod_mult,
             n_bits=n_bits, range_sigma=range_sigma,
-            n_test_rounds=n_test_rounds)
+            n_test_rounds=n_test_rounds,
+            rng_mode=rng_mode)
 
         t_elapsed = time.time() - t_start
         n_secure = result.get('n_secure', 0)
@@ -3818,7 +3967,8 @@ class NetworkClientLink(object):
     def _run_signbit_nopa(self, B=100000, n_runs=10, n_batches=1,
                            cutoff=0.1, mod_mult=0.5,
                            n_bits=4, range_sigma=4.0,
-                           n_test_rounds=_DEFAULT_N_TEST_ROUNDS):
+                           n_test_rounds=_DEFAULT_N_TEST_ROUNDS,
+                           rng_mode='urandom'):
         """Execute sign-bit no-PA protocol runs over the network (Alice side).
 
         Batched message flow per batch (1.5 RTTs for n_runs):
@@ -3835,13 +3985,19 @@ class NetworkClientLink(object):
         a security break.
         """
         psk = self.pre_shared_key
-        _validate_signbit_nopa_psk(psk, B)
+        _validate_signbit_nopa_psk(psk, B, rng_mode=rng_mode)
+
+        # Extract Toeplitz seed from PSK (last 96 bytes) if rdseed mode
+        toeplitz_seed = None
+        if rng_mode == 'rdseed':
+            toeplitz_offset = 32 + _math.ceil(B / 8)
+            toeplitz_seed = psk[toeplitz_offset:toeplitz_offset + 96]
 
         sigma_z = _leakage_mod.estimate_sigma_z(cutoff)
         p = mod_mult * sigma_z
 
         # Send config with session nonce (prevents replay across TCP connections)
-        config_nonce = os.urandom(16)
+        config_nonce = _rng_bytes(16, rng_mode=rng_mode, toeplitz_seed=toeplitz_seed)
         config_dict = {
             'signbit_nopa': True,
             'B': B,
@@ -3852,6 +4008,7 @@ class NetworkClientLink(object):
             'n_bits': n_bits,
             'range_sigma': range_sigma,
             'n_test_rounds': n_test_rounds,
+            'rng_mode': rng_mode,
         }
         # MAC computed over config_dict before adding nonce/tag to it
         config_tag = _config_mac_tag(config_dict, psk, config_nonce)
@@ -3887,7 +4044,8 @@ class NetworkClientLink(object):
             wa_parts = []
             wa_list = []
             for run_idx in range(n_runs):
-                Z_a = sigma_z * _batch_true_random_gaussian(1, B)
+                Z_a = sigma_z * _batch_true_random_gaussian(1, B,
+                          rng_mode=rng_mode, toeplitz_seed=toeplitz_seed)
                 wa0 = _parallel_mod_reduce(Z_a[:, 0], p)
                 wa_list.append(wa0)
                 wa_parts.append(np.ascontiguousarray(wa0).tobytes())

@@ -3,8 +3,10 @@
 Liup Demo: Information-Theoretic Key Agreement
 
 Usage:
-    python demo.py           # Single batch demo
-    python demo.py --stream  # Continuous streaming (Ctrl+C to stop)
+    python demo.py --urandom           # Single batch (os.urandom)
+    python demo.py --rdseed            # Single batch (RDSEED + Toeplitz)
+    python demo.py --urandom --stream  # Continuous streaming (Ctrl+C to stop)
+    python demo.py --rdseed --stream   # Continuous streaming with RDSEED
 """
 
 from liuproto.link import NetworkServerLink, NetworkClientLink
@@ -16,10 +18,25 @@ import time
 import random
 
 
-def run_single():
+def _psk_for_mode(B, rng_mode):
+    """Generate a PSK of the correct size for the given rng_mode."""
+    base = 32 + (B // 8) + 100
+    if rng_mode == 'rdseed':
+        base += 96  # Toeplitz seed
+    return os.urandom(base)
+
+
+def _mode_label(rng_mode):
+    if rng_mode == 'rdseed':
+        return 'RDSEED + Toeplitz extraction (near-ITS)'
+    return 'os.urandom (ChaCha20 CSPRNG)'
+
+
+def run_single(rng_mode):
     """Run a single batch demo."""
     print("=" * 60)
     print("Liup: Information-Theoretic Key Agreement Demo")
+    print(f"Randomness: {_mode_label(rng_mode)}")
     print("=" * 60)
 
     # Parameters
@@ -29,8 +46,8 @@ def run_single():
     address = ('127.0.0.1', port)
 
     # Step 1: Generate shared secret
-    print("\n[1] Generating pre-shared key (~12.5 KB)...")
-    psk = os.urandom(32 + (B // 8) + 100)
+    print("\n[1] Generating pre-shared key...")
+    psk = _psk_for_mode(B, rng_mode)
     print(f"    PSK size: {len(psk):,} bytes")
     print("    (In real use, exchange this securely out-of-band)")
 
@@ -58,6 +75,7 @@ def run_single():
     client_result = client.run_signbit_nopa(
         B=B, n_runs=n_runs, n_batches=1,
         mod_mult=0.5, n_test_rounds=0,
+        rng_mode=rng_mode,
     )
     elapsed = time.perf_counter() - start
     server_thread.join()
@@ -81,7 +99,7 @@ def run_single():
 
     all_passed = True
     for name, passed in checks:
-        status = "✓ PASS" if passed else "✗ FAIL"
+        status = "PASS" if passed else "FAIL"
         print(f"    {status}: {name}")
         if not passed:
             all_passed = False
@@ -117,17 +135,18 @@ def run_single():
     print("=" * 60)
 
 
-def run_stream():
+def run_stream(rng_mode):
     """Run continuous streaming demo."""
     B = 100_000
     n_runs = 10
 
     print("=" * 60)
     print("Liup Streaming Demo - Continuous ITS Key Generation")
+    print(f"Randomness: {_mode_label(rng_mode)}")
     print("=" * 60)
     print("Press Ctrl+C to stop\n")
 
-    psk = os.urandom(32 + (B // 8) + 100)
+    psk = _psk_for_mode(B, rng_mode)
 
     total_bits = 0
     total_batches = 0
@@ -154,7 +173,8 @@ def run_stream():
             batch_start = time.perf_counter()
             result = client.run_signbit_nopa(
                 B=B, n_runs=n_runs, n_batches=1,
-                mod_mult=0.5, n_test_rounds=0
+                mod_mult=0.5, n_test_rounds=0,
+                rng_mode=rng_mode,
             )
             batch_time = time.perf_counter() - batch_start
             t.join()
@@ -191,10 +211,35 @@ def run_stream():
 
 
 def main():
-    if '--stream' in sys.argv:
-        run_stream()
+    has_urandom = '--urandom' in sys.argv
+    has_rdseed = '--rdseed' in sys.argv
+    has_stream = '--stream' in sys.argv
+
+    if not has_urandom and not has_rdseed:
+        print("""Liup: Information-Theoretic Key Agreement
+
+Please specify a randomness mode:
+
+  python demo.py --urandom [--stream]
+    Uses os.urandom() (ChaCha20 CSPRNG). Extremely strong computational
+    security, suitable for all practical applications.
+    Not formally information-theoretically secure.
+
+  python demo.py --rdseed [--stream]
+    Uses Intel RDSEED + Toeplitz extraction. Strongest option on commodity
+    hardware. ITS-valid under the mild assumption that AES-CBC-MAC does
+    not destroy entropy. Requires CPU with RDSEED support (Intel Broadwell+
+    / AMD Zen+).
+
+See README.md Section 8.1 for details.""")
+        sys.exit(0)
+
+    rng_mode = 'rdseed' if has_rdseed else 'urandom'
+
+    if has_stream:
+        run_stream(rng_mode)
     else:
-        run_single()
+        run_single(rng_mode)
 
 
 if __name__ == '__main__':

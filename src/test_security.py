@@ -3681,6 +3681,256 @@ class TestSigmaVerification(unittest.TestCase):
         self.assertEqual(s, expected_s)
 
 
+class TestRdseedMode(unittest.TestCase):
+    """Tests for RDSEED + Toeplitz extraction randomness mode."""
+
+    def _find_free_port(self):
+        import socket as _socket
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as s:
+            s.bind(('127.0.0.1', 0))
+            return s.getsockname()[1]
+
+    def _make_rdseed_psk(self, B):
+        """Generate PSK for rdseed mode: 32 + ceil(B/8) + 96 bytes."""
+        import math
+        required = 32 + math.ceil(B / 8) + 96
+        return os.urandom(required)
+
+    def test_toeplitz_extract_dimensions(self):
+        """Toeplitz extraction produces half-length output."""
+        from liuproto.link import _toeplitz_extract
+        seed = os.urandom(96)
+        for n_blocks in [1, 2, 5, 10]:
+            raw = os.urandom(n_blocks * 64)  # 64 bytes = 512 bits per block
+            out = _toeplitz_extract(raw, seed)
+            self.assertEqual(len(out), n_blocks * 32,
+                             f"Expected {n_blocks * 32} bytes, got {len(out)}")
+
+    def test_toeplitz_extract_deterministic(self):
+        """Same input + same seed = same output."""
+        from liuproto.link import _toeplitz_extract
+        seed = os.urandom(96)
+        raw = os.urandom(640)  # 10 blocks
+        out1 = _toeplitz_extract(raw, seed)
+        out2 = _toeplitz_extract(raw, seed)
+        self.assertEqual(out1, out2)
+
+    def test_toeplitz_extract_different_seeds(self):
+        """Different seeds produce different outputs (with overwhelming prob)."""
+        from liuproto.link import _toeplitz_extract
+        raw = os.urandom(640)
+        seed1 = os.urandom(96)
+        seed2 = os.urandom(96)
+        out1 = _toeplitz_extract(raw, seed1)
+        out2 = _toeplitz_extract(raw, seed2)
+        self.assertNotEqual(out1, out2)
+
+    def test_toeplitz_extract_output_binary(self):
+        """All output bits are 0 or 1 (no overflow from GF(2) matmul)."""
+        from liuproto.link import _toeplitz_extract
+        seed = os.urandom(96)
+        raw = os.urandom(64 * 20)
+        out = _toeplitz_extract(raw, seed)
+        out_bits = np.unpackbits(np.frombuffer(out, dtype=np.uint8))
+        self.assertTrue(np.all((out_bits == 0) | (out_bits == 1)))
+
+    def test_rng_bytes_urandom_length(self):
+        """_rng_bytes in urandom mode returns correct length."""
+        from liuproto.link import _rng_bytes
+        for n in [1, 16, 32, 64, 100, 1000]:
+            out = _rng_bytes(n, rng_mode='urandom')
+            self.assertEqual(len(out), n)
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_rng_bytes_rdseed_length(self):
+        """_rng_bytes in rdseed mode returns correct length for various sizes."""
+        from liuproto.link import _rng_bytes
+        seed = os.urandom(96)
+        for n in [1, 16, 32, 64, 100, 1000]:
+            out = _rng_bytes(n, rng_mode='rdseed', toeplitz_seed=seed)
+            self.assertEqual(len(out), n,
+                             f"Expected {n} bytes, got {len(out)}")
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_batch_rdseed_raw_returns_bytes(self):
+        """_batch_rdseed_raw returns the requested number of bytes."""
+        from liuproto.link import _batch_rdseed_raw
+        for n in [8, 64, 256, 1024]:
+            raw = _batch_rdseed_raw(n)
+            self.assertIsInstance(raw, bytes)
+            self.assertEqual(len(raw), n)
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_batch_rdseed_raw_not_constant(self):
+        """Two RDSEED calls produce different output."""
+        from liuproto.link import _batch_rdseed_raw
+        a = _batch_rdseed_raw(64)
+        b = _batch_rdseed_raw(64)
+        self.assertNotEqual(a, b)
+
+    def test_validate_psk_urandom_rejects_short(self):
+        """urandom mode rejects PSK that's too short."""
+        from liuproto.link import _validate_signbit_nopa_psk
+        import math
+        B = 1000
+        short_psk = os.urandom(32 + math.ceil(B / 8) - 1)
+        with self.assertRaises(ValueError):
+            _validate_signbit_nopa_psk(short_psk, B, rng_mode='urandom')
+
+    def test_validate_psk_rdseed_requires_extra_96(self):
+        """rdseed mode requires 96 extra bytes beyond urandom minimum."""
+        from liuproto.link import _validate_signbit_nopa_psk
+        import math
+        B = 1000
+        urandom_min = 32 + math.ceil(B / 8)
+        # PSK that's valid for urandom but too short for rdseed
+        psk_urandom = os.urandom(urandom_min)
+        _validate_signbit_nopa_psk(psk_urandom, B, rng_mode='urandom')  # should pass
+        with self.assertRaises(ValueError):
+            _validate_signbit_nopa_psk(psk_urandom, B, rng_mode='rdseed')  # should fail
+        # PSK with the extra 96 bytes
+        psk_rdseed = os.urandom(urandom_min + 96)
+        _validate_signbit_nopa_psk(psk_rdseed, B, rng_mode='rdseed')  # should pass
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_rdseed_gaussian_shape(self):
+        """_batch_true_random_gaussian with rdseed returns correct shape."""
+        from liuproto.link import _batch_true_random_gaussian
+        seed = os.urandom(96)
+        B, n = 200, 1
+        out = _batch_true_random_gaussian(n, B, rng_mode='rdseed',
+                                          toeplitz_seed=seed)
+        self.assertEqual(out.shape, (B, n))
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_rdseed_gaussian_distribution(self):
+        """RDSEED-sourced Gaussians pass Shapiro-Wilk normality test."""
+        from liuproto.link import _batch_true_random_gaussian
+        seed = os.urandom(96)
+        out = _batch_true_random_gaussian(1, 500, rng_mode='rdseed',
+                                          toeplitz_seed=seed)
+        _, p_val = stats.shapiro(out[:, 0])
+        self.assertGreater(p_val, 0.001,
+                           f"Shapiro-Wilk p={p_val:.4f}, samples not normal")
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_rdseed_key_agreement(self):
+        """Server and client produce identical keys in rdseed mode."""
+        import threading
+        B, n_runs = 200, 3
+        psk = self._make_rdseed_psk(B)
+        port = self._find_free_port()
+        address = ('127.0.0.1', port)
+
+        server = liuproto.link.NetworkServerLink(
+            address, pre_shared_key=psk)
+        server_result = [None]
+
+        def server_thread():
+            server_result[0] = server.run_batch_signbit_nopa()
+
+        t = threading.Thread(target=server_thread)
+        t.start()
+
+        physics = liuproto.endpoint.Physics(
+            number_of_exchanges=1, reflection_coefficient=0.8,
+            cutoff=0.1, ramp_time=5, resolution=0,
+            masking_time=0, masking_magnitude=0, modulus=0.2)
+        client = liuproto.link.NetworkClientLink(
+            address, physics, pre_shared_key=psk)
+        client_result = client.run_signbit_nopa(
+            B=B, n_runs=n_runs, cutoff=0.1, mod_mult=0.5,
+            rng_mode='rdseed')
+
+        t.join(timeout=120)
+        client.close()
+        server.close()
+
+        self.assertGreater(client_result['n_runs_used'], 0,
+                           "Should have at least 1 successful run")
+
+        srv = server_result[0]
+        self.assertIsNotNone(srv)
+
+        self.assertTrue(
+            np.array_equal(client_result['secure_bits'],
+                           srv['secure_bits']),
+            "Client and server must produce identical raw keys in rdseed mode")
+
+        self.assertEqual(client_result['n_secure'],
+                         client_result['n_runs_used'] * B)
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_rdseed_continuous_operation(self):
+        """Multiple batches in rdseed mode: pool stays flat, keys match."""
+        import threading
+        B, n_runs = 200, 5
+        psk = self._make_rdseed_psk(B)
+        port = self._find_free_port()
+        address = ('127.0.0.1', port)
+
+        server = liuproto.link.NetworkServerLink(
+            address, pre_shared_key=psk)
+        server_result = [None]
+
+        def server_thread():
+            server_result[0] = server.run_batch_signbit_nopa()
+
+        t = threading.Thread(target=server_thread)
+        t.start()
+
+        physics = liuproto.endpoint.Physics(
+            number_of_exchanges=1, reflection_coefficient=0.8,
+            cutoff=0.1, ramp_time=5, resolution=0,
+            masking_time=0, masking_magnitude=0, modulus=0.2)
+        client = liuproto.link.NetworkClientLink(
+            address, physics, pre_shared_key=psk)
+        client_result = client.run_signbit_nopa(
+            B=B, n_runs=n_runs, cutoff=0.1, mod_mult=0.5,
+            n_batches=1, rng_mode='rdseed')
+
+        t.join(timeout=120)
+        client.close()
+        server.close()
+
+        srv = server_result[0]
+        self.assertIsNotNone(srv)
+        self.assertEqual(client_result['n_runs_used'], n_runs)
+        self.assertTrue(
+            np.array_equal(client_result['secure_bits'],
+                           srv['secure_bits']))
+
+    @unittest.skipUnless(
+        liuproto.link._has_rdseed, "RDSEED not available on this CPU")
+    def test_rdseed_config_includes_rng_mode(self):
+        """The rng_mode field is included in the config and authenticated."""
+        from liuproto.link import _config_mac_tag
+        import math
+        B = 200
+        psk = self._make_rdseed_psk(B)
+        nonce = os.urandom(16)
+
+        config_urandom = {
+            'signbit_nopa': True, 'B': B, 'n_runs': 3,
+            'rng_mode': 'urandom',
+        }
+        config_rdseed = {
+            'signbit_nopa': True, 'B': B, 'n_runs': 3,
+            'rng_mode': 'rdseed',
+        }
+        tag_u = _config_mac_tag(config_urandom, psk, nonce)
+        tag_r = _config_mac_tag(config_rdseed, psk, nonce)
+        self.assertNotEqual(tag_u, tag_r,
+                            "Config MAC should differ when rng_mode differs")
+
+
 if __name__ == '__main__':
     suite = unittest.TestSuite([
         unittest.TestLoader().loadTestsFromTestCase(TestUniformity),
@@ -3707,5 +3957,6 @@ if __name__ == '__main__':
         unittest.TestLoader().loadTestsFromTestCase(TestSignbitProtocol),
         unittest.TestLoader().loadTestsFromTestCase(TestSignbitNoPA),
         unittest.TestLoader().loadTestsFromTestCase(TestSigmaVerification),
+        unittest.TestLoader().loadTestsFromTestCase(TestRdseedMode),
     ])
     unittest.TextTestRunner(verbosity=2).run(suite)
