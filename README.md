@@ -30,7 +30,7 @@ The protocol generates unlimited ITS key material from this finite PSK through a
 
 ### 1.1 Background: The Liu Protocol
 
-This implementation builds on the key agreement protocol introduced by Pau-Lo Liu [1, 2], which established that two parties can generate shared secret bits by exchanging band-limited Gaussian noise signals over a physical channel.
+This implementation builds on the key agreement protocol introduced by Pau-Lo Liu [1, 2], which established that two parties can generate shared secret bits by exchanging band-limited Gaussian noise signals over a physical channel. A subsequent paper by Liu and Josan [3] identified a quantization noise vulnerability in the physical-channel version; our discrete-mathematical design is immune to this attack (see Section 3.6).
 
 **Core insight from Liu**: When Alice and Bob exchange values Z mod p (where Z is drawn from a Gaussian distribution with σ >> p), the wrapped distribution is nearly uniform. An eavesdropper Eve, seeing only the wire value w = Z mod p, cannot determine the sign of Z—this uncertainty provides information-theoretic security.
 
@@ -42,13 +42,14 @@ This implementation builds on the key agreement protocol introduced by Pau-Lo Li
 | Passive adversary only | Security proofs addressed eavesdropping but not active tampering, injection, or replay attacks |
 | No authentication | No mechanism to detect man-in-the-middle attackers modifying messages |
 | Key material consumption | Each protocol run consumed fresh key material with no recycling mechanism |
+| Quantization noise vulnerability | When digitized, broadband quantization noise leaks through the feedback loop, enabling an eavesdropper to recover key bits [3] |
 | Implementation gap | Theoretical protocol without practical implementation or test suite |
 
 **What this implementation adds**:
 
 | Extension | Solution |
 |-----------|----------|
-| TCP/IP operation | Simulates the Gaussian channel digitally; works over any network path |
+| TCP/IP operation | Simulates the Gaussian channel digitally; works over any network path. No analog signals, no feedback loop, no quantization noise — immune to the attack in [3] (see Section 3.6) |
 | Active MITM protection | Polynomial MAC (Wegman-Carter) authenticates all messages with ITS guarantees |
 | Authenticated config | Session parameters are MAC'd to prevent parameter tampering |
 | PSK reuse safety | Session nonce XOR'd into MAC keys prevents cross-session attacks |
@@ -183,6 +184,23 @@ At σ/p = 2, B = 100,000:
 - Per-run forgery probability: ~10⁻¹⁴
 - TV leakage per run: ~10⁻²⁹ (negligible)
 - After 10⁹ runs (~100 Tbit of key): ε ≈ 10⁻⁵
+
+### 3.6 Immunity to the Quantization Noise Attack
+
+Liu and Josan [3] demonstrated that the original physical-channel Liu protocol is vulnerable to a quantization noise attack. When analog signals are digitized, broadband quantization noise is introduced and propagated through the feedback loop. An eavesdropper can correlate the high-frequency components of the two counter-propagating signals to recover the sign of the feedback coefficient (the key bit). The attack works because the quantization error `n+` at Alice's terminal and `n-` at Bob's terminal satisfy the same feedback equations as the original signals, and their cross-correlation `δq = ⟨n+·n- − n+·n-⟩` reveals the key bit with high confidence.
+
+**This attack does not apply to our protocol.** The attack requires four properties that are absent from our design:
+
+| Attack requirement | Original Liu (physical channel) | This protocol (discrete) |
+|---|---|---|
+| Analog signals | Counter-propagating waves V+, V- over fiber | None — all values are integers |
+| Feedback loop | `V+ = V1 + α·V-` (received signal fed back into transmission) | None — Alice and Bob generate Z_a, Z_b independently |
+| Quantization | Analog-to-digital conversion introduces broadband noise | None — samples are generated digitally; `Z mod p` is integer arithmetic |
+| High-frequency leakage | Quantization noise carries key information into out-of-band frequencies | No analog spectrum — wire values are single integers per run |
+
+In our protocol, Alice samples Z_a from a discrete Gaussian distribution, computes `w_a = Z_a mod p` (an integer), and sends it over TCP. Bob does likewise with Z_b. There is no feedback of one party's signal into the other's generation, no analog-to-digital conversion, and no frequency spectrum to analyze. The security rests entirely on the statistical properties of the wrapped Gaussian distribution (Theorem 1), not on bandwidth limitation or signal processing.
+
+The quantization noise attack is one of the motivations for our purely discrete design: by operating in integer arithmetic rather than digitized analog signals, we eliminate an entire class of signal-processing vulnerabilities (quantization noise, bandwidth leakage, propagation delay exploitation) that affect the physical-channel protocol.
 
 ---
 
@@ -480,7 +498,7 @@ Physical entropy   →   AES-CBC-MAC conditioner   →   Toeplitz extraction   �
 
 Pure RDSEED output has passed through a deterministic function (AES-CBC-MAC) with a **public key**. An unbounded adversary knows this key and can compute AES. If the physical source had any exploitable structure — biased bits, correlated samples, predictable jitter patterns — the adversary could potentially invert or correlate the conditioned output, since the conditioner provides no secrecy barrier.
 
-Toeplitz extraction closes this gap through the **leftover hash lemma** (a cornerstone result in information-theoretic cryptography [4]): if the input has sufficient min-entropy H_∞, and the extraction function is chosen from a family of universal hash functions (which Toeplitz matrices are), then the output is within statistical distance 2^{-(H_∞ - output_length)/2} of the uniform distribution — regardless of the adversary's computational power.
+Toeplitz extraction closes this gap through the **leftover hash lemma** (a cornerstone result in information-theoretic cryptography [5]): if the input has sufficient min-entropy H_∞, and the extraction function is chosen from a family of universal hash functions (which Toeplitz matrices are), then the output is within statistical distance 2^{-(H_∞ - output_length)/2} of the uniform distribution — regardless of the adversary's computational power.
 
 Concretely:
 - Each 512-bit RDSEED block is compressed to 256 output bits (2:1 ratio)
@@ -583,10 +601,12 @@ This is ~3–10× slower than AES, which is the inherent cost of information-the
 
 ## 9. References
 
-[1] Liu, Pau-Lo, "A key agreement protocol using band-limited random signals and feedback," *Journal of Lightwave Technology* 27(23), 2009.
+[1] Liu, Pau-Lo, "A key agreement protocol using band-limited random signals and feedback," *Journal of Lightwave Technology* 27(23), 2009. ([PDF](Liu2009.pdf))
 
-[2] Liu, Pau-Lo, "Prediction accuracy of band-restricted random signals and security risk in statistical key exchange," *Fluctuations and Noise Letters* 9(4), 2010.
+[2] Liu, Pau-Lo, "Prediction accuracy of band-restricted random signals and security risk in statistical key exchange," *Fluctuations and Noise Letters* 9(4), 2010. ([PDF](Liu2010.pdf))
 
-[3] Wegman, M. N. and Carter, J. L., "New hash functions and their use in authentication and set equality," *Journal of Computer and System Sciences* 22(3), 1981.
+[3] Liu, Pau-Lo and Josan, Madhur S., "Quantization noise in statistical key exchange," *Fluctuation and Noise Letters* 10(3), 2011. ([PDF](LiuJosan2011.pdf))
 
-[4] Impagliazzo, R., Levin, L. A., and Luby, M., "Pseudo-random generation from one-way functions," *STOC*, 1989.
+[4] Wegman, M. N. and Carter, J. L., "New hash functions and their use in authentication and set equality," *Journal of Computer and System Sciences* 22(3), 1981.
+
+[5] Impagliazzo, R., Levin, L. A., and Luby, M., "Pseudo-random generation from one-way functions," *STOC*, 1989.
