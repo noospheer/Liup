@@ -366,11 +366,11 @@ The protocol achieves near-optimal theoretical efficiency:
 | Protocol | Key Rate | Security | Hardware | Assumptions |
 |----------|----------|----------|----------|-------------|
 | AES-256-GCM | ~10 Gbps | Computational | CPU | AES hardness |
-| QKD (BB84) | ~1–10 kbps | ITS | Quantum channel, SPDs | Quantum mechanics |
+| QKD (BB84) | ~1–10 kbps | ITS | Quantum channel, SPDs | Quantum mechanics + authenticated classical channel |
 | **This protocol** | ~2–3 Mbps | ITS | CPU + TRNG | True randomness |
 
 **Key observations**:
-- **vs QKD**: For key *amplification* from an existing shared secret, 300–3000× faster than QKD, with no quantum hardware, over any TCP/IP path. Critical trade-off: this protocol **cannot bootstrap from scratch**—it requires a pre-shared secret established out-of-band, whereas QKD can establish a key from scratch using a quantum channel (see Section 8.4).
+- **vs QKD**: 300–3000× faster, no quantum hardware, works over any TCP/IP path. Both protocols require a pre-shared secret: QKD needs a short authentication key for its classical channel (basis reconciliation, error estimation, and privacy amplification all require authenticated classical messages — without this, a MITM intercepts both quantum and classical channels undetected); this protocol needs ~12.5 KB. QKD's advantage is needing a shorter initial seed; this protocol's advantage is needing no quantum hardware. Neither truly bootstraps ITS key agreement from scratch — see Section 8.4.
 - **vs computational crypto**: ~1000× slower, which is the inherent cost of ITS—you cannot achieve unconditional security at computational speeds. Note that AES-GCM performs *encryption* (a local operation), while this protocol performs *key agreement* (requiring network round-trips); these are different primitives.
 - **vs OTP**: OTP consumes 1 bit of key per bit of message. This protocol generates unlimited key from ~12.5 KB of PSK—with information-theoretic security, not computational assumptions. (Generating unlimited output from a finite seed is standard for stream ciphers like ChaCha20; the novelty here is achieving ITS while doing so.)
 
@@ -496,7 +496,9 @@ The protocol assumes:
 
 ### 8.4 Pre-Shared Key Requirement
 
-Unlike QKD, this protocol **cannot bootstrap from scratch**. The initial PSK must be established through a separate authenticated channel (in-person exchange, trusted courier, or computational crypto during a trusted setup phase).
+This protocol requires a pre-shared key (~12.5 KB) established through an out-of-band authenticated channel (in-person exchange, trusted courier, or computational crypto during a trusted setup phase).
+
+**Note on QKD**: QKD is sometimes described as bootstrapping key agreement "from scratch," but this is imprecise. QKD's post-processing (basis reconciliation, error estimation, privacy amplification) requires an **authenticated classical channel**, which itself needs either a pre-shared key (for an ITS MAC) or computational assumptions (e.g. public-key signatures, which break the ITS guarantee). In practice, most deployed QKD systems use a small pre-shared key for initial authentication, then reserve part of each session's output to authenticate the next. The difference is quantitative, not qualitative: QKD needs a shorter initial seed than this protocol, but neither achieves ITS key agreement from zero shared state.
 
 ### 8.5 Performance Ceiling
 
