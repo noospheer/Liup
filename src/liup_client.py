@@ -1,12 +1,22 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
 import sys
-import json  # Import json module
+import json
 
 import liuproto.endpoint
 import liuproto.link
 import liuproto.storage
+
+
+def parse_modulus(value):
+    """Parse modulus argument: '0', 'auto', or a positive float."""
+    if value.lower() == 'auto':
+        return 'auto'
+    f = float(value)
+    if f < 0:
+        raise argparse.ArgumentTypeError("modulus must be >= 0 or 'auto'")
+    return f
 
 
 class RangeFloat(object):
@@ -142,6 +152,25 @@ if __name__ == '__main__':
         default=1.0/4096
     )
 
+    parser.add_argument(
+        '-m', '--modulus',
+        help="Modular reduction modulus p (0 = classic, 'auto' = calibrated).",
+        type=parse_modulus,
+        default=0
+    )
+
+    parser.add_argument(
+        '--leakage-report',
+        help="Print leakage analysis after run.",
+        action='store_true'
+    )
+
+    parser.add_argument(
+        '--privacy-amplification',
+        help="Apply privacy amplification to batch and report key lengths.",
+        action='store_true'
+    )
+
     args = parser.parse_args()
 
     storage = liuproto.storage.Session('client')
@@ -152,7 +181,8 @@ if __name__ == '__main__':
                                         args.ramptime,
                                         args.resolution,
                                         args.masking_time,
-                                        args.masking_magnitude)
+                                        args.masking_magnitude,
+                                        modulus=args.modulus)
     link = liuproto.link.NetworkClientLink(
         (args.address, args.port),
         physics,
@@ -178,3 +208,11 @@ if __name__ == '__main__':
 
         sys.stdout.write("\n")
 
+    if args.leakage_report:
+        if physics.modulus > 0:
+            report = physics.leakage_report()
+            print('\n--- Leakage Report ---')
+            for key, val in report.items():
+                print('  %s: %s' % (key, val))
+        else:
+            print('\nLeakage report requires modulus > 0.')

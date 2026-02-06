@@ -3,7 +3,6 @@
 import copy
 from . import endpoint
 
-
 try:
     import xml.etree.cElementTree as ET
 except ImportError:
@@ -20,16 +19,13 @@ class Session(object):
 
     @property
     def xml(self):
-        result = """<?xml version='1.0'?>
-
-<session link='%s' xmlns='http://www.example.org/liuproto'>
-""" % self.linktype
+        root = ET.Element('session', attrib={
+            'link': self.linktype,
+            'xmlns': 'http://www.example.org/liuproto'
+        })
         for run in self.runs:
-            result += '\t' + '\n\t'.join(run.xml.split('\n')) + "\n"
-
-        result += '</session>'
-
-        return result
+            run.to_xml_element(root)
+        return "<?xml version='1.0'?>\n\n" + ET.tostring(root, encoding='unicode')
 
     @staticmethod
     def from_xml(element):
@@ -63,25 +59,21 @@ class Run(object):
     def add_result(self, result):
         self.results.append(result)
 
+    def to_xml_element(self, parent):
+        run_elem = ET.SubElement(parent, 'run', attrib={'id': str(self.id)})
+        for ep in self.endpoints:
+            ep.to_xml_element(run_elem)
+        for message in self.messages:
+            message.to_xml_element(run_elem)
+        for this_result in self.results:
+            this_result.to_xml_element(run_elem)
+        return run_elem
+
     @property
     def xml(self):
-        result = '<run id="%d">\n' % self.id
-        for endpoint in self.endpoints:
-            result += "\t" + '\n\t'.join(endpoint.xml.split('\n')) + "\n"
-
-        result += "\n"
-
-        for message in self.messages:
-            result += "\t" + '\n\t'.join(message.xml.split('\n')) + "\n"
-
-        result += "\n"
-
-        for this_result in self.results:
-            result += "\t" + "\n\t".join(this_result.xml.split('\n')) + "\n"
-
-        result += "</run>"
-
-        return result
+        elem = ET.Element('_dummy')
+        self.to_xml_element(elem)
+        return ET.tostring(list(elem)[0], encoding='unicode')
 
     @staticmethod
     def from_xml(element):
@@ -103,32 +95,38 @@ class Endpoint(object):
         self.id = endpoint_id
         self.physics = copy.deepcopy(physics)
 
+    def to_xml_element(self, parent):
+        attribs = {
+            'id': self.id,
+            'reflection_coefficient': '%f' % self.physics.reflection_coefficient,
+            'cutoff': '%f' % self.physics.cutoff,
+            'ramp_time': '%d' % self.physics.ramp_time,
+            'resolution': '%f' % self.physics.resolution,
+            'masking_time': '%d' % self.physics.masking_time,
+            'masking_magnitude': '%f' % self.physics.masking_magnitude,
+        }
+        if self.physics.modulus > 0:
+            attribs['modulus'] = '%f' % self.physics.modulus
+        if hasattr(self.physics, 'ramp_exclusion_factor') and \
+                self.physics.ramp_exclusion_factor != 3.0:
+            attribs['ramp_exclusion_factor'] = '%f' % self.physics.ramp_exclusion_factor
+        elem = ET.SubElement(parent, 'endpoint', attrib=attribs)
+        elem.text = ' '.join([str(x) for x in self.physics.random_values])
+        return elem
+
     @property
     def xml(self):
-        result = """<endpoint
-    id="%s"
-    reflection_coefficient="%f"
-    cutoff="%f"
-    ramp_time="%d"
-    resolution="%f"
-    masking_time="%d"
-    masking_magnitude="%f">\n\t""" % (
-            self.id,
-            self.physics.reflection_coefficient,
-            self.physics.cutoff,
-            self.physics.ramp_time,
-            self.physics.resolution,
-            self.physics.masking_time,
-            self.physics.masking_magnitude)
-
-        result += ' '.join([str(x) for x in self.physics.random_values])
-
-        result += '\n</endpoint>'
-        return result
+        parent = ET.Element('_dummy')
+        self.to_xml_element(parent)
+        return ET.tostring(list(parent)[0], encoding='unicode')
 
     @staticmethod
     def from_xml(element):
         randomness = element.text.split()
+
+        modulus = float(element.attrib.get('modulus', 0))
+        ramp_exclusion_factor = float(
+            element.attrib.get('ramp_exclusion_factor', 3.0))
 
         physics = endpoint.Physics(
             len(randomness)-1,
@@ -137,7 +135,9 @@ class Endpoint(object):
             int(element.attrib['ramp_time']),
             float(element.attrib['resolution']),
             int(element.attrib['masking_time']),
-            float(element.attrib['masking_magnitude']))
+            float(element.attrib['masking_magnitude']),
+            modulus=modulus,
+            ramp_exclusion_factor=ramp_exclusion_factor)
 
         # These needs to be set manually, because Endpoint randomises the
         # sign of the reflection coefficient.
@@ -155,12 +155,19 @@ class Message(object):
         self.destination = destination
         self.message = message
 
+    def to_xml_element(self, parent):
+        elem = ET.SubElement(parent, 'message', attrib={
+            'from': self.source,
+            'to': self.destination,
+        })
+        elem.text = '%f' % self.message
+        return elem
+
     @property
     def xml(self):
-        return '<message from="%s" to="%s">%f</message>' % (
-            self.source,
-            self.destination,
-            self.message)
+        parent = ET.Element('_dummy')
+        self.to_xml_element(parent)
+        return ET.tostring(list(parent)[0], encoding='unicode')
 
     @staticmethod
     def from_xml(element):
@@ -175,22 +182,31 @@ class Result(object):
         self.endpoint = endpoint
         self.result = result
 
+    def to_xml_element(self, parent):
+        attribs = {'endpoint': self.endpoint}
+        elem = ET.SubElement(parent, 'result', attrib=attribs)
+        if self.result is not None:
+            elem.text = '%d' % self.result
+        return elem
+
     @property
     def xml(self):
-        if self.result is not None:
-            return '<result endpoint="%s">%d</result>' \
-                   % (self.endpoint, self.result)
-        else:
-            return '<result endpoint="%s" />' % self.endpoint
+        parent = ET.Element('_dummy')
+        self.to_xml_element(parent)
+        return ET.tostring(list(parent)[0], encoding='unicode')
 
     @staticmethod
     def from_xml(element):
-        if element.text is None:
+        if element.text is None or not element.text.strip():
             result = None
-        elif element.text.strip() in ['0','1']:
+        elif element.text.strip() in ['0', '1']:
             result = int(element.text)
-        elif element.text.strip().lower() in ['true', 'false']:
-            result = bool(element.text)
+        elif element.text.strip().lower() == 'true':
+            result = True
+        elif element.text.strip().lower() == 'false':
+            result = False
+        else:
+            result = None
 
         return Result(
             element.attrib['endpoint'],

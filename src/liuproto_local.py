@@ -1,10 +1,21 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import argparse
+import json
 
 import liuproto.endpoint
 import liuproto.link
 import liuproto.storage
+
+
+def parse_modulus(value):
+    """Parse modulus argument: '0', 'auto', or a positive float."""
+    if value.lower() == 'auto':
+        return 'auto'
+    f = float(value)
+    if f < 0:
+        raise argparse.ArgumentTypeError("modulus must be >= 0 or 'auto'")
+    return f
 
 
 class Range(object):
@@ -112,6 +123,25 @@ if __name__ == '__main__':
         default=1.0/4096
     )
 
+    parser.add_argument(
+        '-m', '--modulus',
+        help="Modular reduction modulus p (0 = classic, 'auto' = calibrated).",
+        type=parse_modulus,
+        default=0
+    )
+
+    parser.add_argument(
+        '--leakage-report',
+        help="Print leakage analysis after run.",
+        action='store_true'
+    )
+
+    parser.add_argument(
+        '--privacy-amplification',
+        help="Apply privacy amplification to batch and report key lengths.",
+        action='store_true'
+    )
+
     args = parser.parse_args()
 
     if args.xml:
@@ -119,18 +149,43 @@ if __name__ == '__main__':
     else:
         storage = None
 
-    physics = liuproto.endpoint.Physics(args.exchanges, args.reflection_coefficient, args.cutoff, args.ramptime, args.resolution, args.masking_time, args.masking_magnitude)
+    physics = liuproto.endpoint.Physics(
+        args.exchanges, args.reflection_coefficient, args.cutoff,
+        args.ramptime, args.resolution, args.masking_time,
+        args.masking_magnitude, modulus=args.modulus)
     link = liuproto.link.InternalLink(physics, storage=storage)
 
-    results = []
-    for i in range(args.repetitions):
-        results.append(link.run_proto())
-
-    if args.xml:
-        print storage.xml
-    else:
-        errors = len([1 for x in results if x is not None and x[0] != x[1]])
-        if len(results) > 0:
-            print 'BER: %e' % (float(errors)/len(results))
+    if args.privacy_amplification:
+        secure_a, secure_b, n_raw, n_secure = \
+            link.run_batch_with_privacy(args.repetitions)
+        errors = sum(1 for a, b in zip(secure_a, secure_b) if a != b)
+        print('Raw bits: %d' % n_raw)
+        print('Secure bits: %d' % n_secure)
+        if n_secure > 0:
+            print('Secure BER: %e' % (float(errors) / n_secure))
+            print('Secure key (Alice): %s' % ''.join(str(b) for b in secure_a))
+            print('Secure key (Bob):   %s' % ''.join(str(b) for b in secure_b))
         else:
-            print 'No successful exchanges.'
+            print('Not enough raw bits for privacy amplification.')
+    else:
+        results = []
+        for i in range(args.repetitions):
+            results.append(link.run_proto())
+
+        if args.xml:
+            print(storage.xml)
+        else:
+            errors = len([1 for x in results if x is not None and x[0] != x[1]])
+            if len(results) > 0:
+                print('BER: %e' % (float(errors)/len(results)))
+            else:
+                print('No successful exchanges.')
+
+    if args.leakage_report:
+        if physics.modulus > 0:
+            report = physics.leakage_report()
+            print('\n--- Leakage Report ---')
+            for key, val in report.items():
+                print('  %s: %s' % (key, val))
+        else:
+            print('\nLeakage report requires modulus > 0.')
