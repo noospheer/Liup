@@ -50,7 +50,7 @@ This implementation builds on the key agreement protocol introduced by Pau-Lo Li
 | Extension | Solution |
 |-----------|----------|
 | TCP/IP operation | Simulates the Gaussian channel digitally; works over any network path. No analog signals, no feedback loop, no quantization noise — immune to the attack in [3] (see Section 3.6) |
-| Active MITM protection | Polynomial MAC (Wegman-Carter) authenticates all messages with ITS guarantees |
+| Active MITM protection | Polynomial MAC (Wegman-Carter [4]) authenticates all messages with ITS guarantees |
 | Authenticated config | Session parameters are MAC'd to prevent parameter tampering |
 | PSK reuse safety | Session nonce XOR'd into MAC keys prevents cross-session attacks |
 | Infinite key generation | Pool recycling with hybrid-game composition proof |
