@@ -37,7 +37,10 @@ def run_single():
     # Step 2: Start server
     print("\n[2] Starting server...")
     server = NetworkServerLink(address, pre_shared_key=psk)
-    server_thread = threading.Thread(target=server.run_batch_signbit_nopa)
+    server_result = [None]
+    def run_server():
+        server_result[0] = server.run_batch_signbit_nopa()
+    server_thread = threading.Thread(target=run_server)
     server_thread.start()
     time.sleep(0.1)
     print(f"    Listening on {address[0]}:{address[1]}")
@@ -52,22 +55,49 @@ def run_single():
     client = NetworkClientLink(address, physics, pre_shared_key=psk)
 
     start = time.perf_counter()
-    result = client.run_signbit_nopa(
+    client_result = client.run_signbit_nopa(
         B=B, n_runs=n_runs, n_batches=1,
         mod_mult=0.5, n_test_rounds=0,
     )
     elapsed = time.perf_counter() - start
     server_thread.join()
 
-    # Step 4: Results
-    key_bits = result['secure_bits']
-    throughput = len(key_bits) / elapsed / 1e6
-    key_str = ''.join(str(int(b)) for b in key_bits[:256])
+    # Step 4: Validation
+    print("\n[4] Validation")
+    print("=" * 60)
+
+    client_key = client_result['secure_bits']
+    server_key = server_result[0]['secure_bits']
+
+    # Check keys match
+    keys_match = len(client_key) == len(server_key) and all(
+        c == s for c, s in zip(client_key, server_key)
+    )
+
+    checks = []
+    checks.append(("Keys match (client == server)", keys_match))
+    checks.append(("Expected bit count", len(client_key) == B * n_runs))
+    checks.append(("Protocol completed", client_result is not None and server_result[0] is not None))
+
+    all_passed = True
+    for name, passed in checks:
+        status = "✓ PASS" if passed else "✗ FAIL"
+        print(f"    {status}: {name}")
+        if not passed:
+            all_passed = False
+
+    if not all_passed:
+        print("\n    *** VALIDATION FAILED ***")
+        sys.exit(1)
+
+    # Step 5: Results
+    throughput = len(client_key) / elapsed / 1e6
+    key_str = ''.join(str(int(b)) for b in client_key[:256])
     key_hex = hex(int(key_str[:128], 2))[2:].zfill(32)
 
-    print("\n[4] Results")
+    print("\n[5] Results")
     print("=" * 60)
-    print(f"    Generated:  {len(key_bits):,} bits of ITS key")
+    print(f"    Generated:  {len(client_key):,} bits of ITS key")
     print(f"    Time:       {elapsed:.2f} seconds")
     print(f"    Throughput: {throughput:.2f} Mbps")
     print(f"\n    First 128 bits (binary):")
@@ -75,7 +105,7 @@ def run_single():
     print(f"    {key_str[64:128]}")
     print(f"\n    First 128 bits (hex): {key_hex}")
 
-    print("\n[5] Security properties")
+    print("\n[6] Security properties")
     print("=" * 60)
     print("    - Information-theoretically secure (not just computational)")
     print("    - Secure against adversaries with unlimited compute power")
@@ -83,7 +113,7 @@ def run_single():
     print("    - Can generate unlimited key from the same ~12.5 KB PSK")
 
     print("\n" + "=" * 60)
-    print("Demo complete!")
+    print("Demo complete! All validations passed.")
     print("=" * 60)
 
 
