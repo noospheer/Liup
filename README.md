@@ -28,7 +28,37 @@ This work implements the **signbit-nopa** protocol, which achieves ITS key agree
 
 The protocol generates unlimited ITS key material from this finite PSK through a pool recycling mechanism whose security we prove via a hybrid-game argument.
 
-### 1.1 Contributions
+### 1.1 Background: The Liu Protocol
+
+This implementation builds on the key agreement protocol introduced by Pengfei Liu [1, 2], which established that two parties can generate shared secret bits by exchanging band-limited Gaussian noise signals over a physical channel.
+
+**Core insight from Liu**: When Alice and Bob exchange values Z mod p (where Z is drawn from a Gaussian distribution with σ >> p), the wrapped distribution is nearly uniform. An eavesdropper Eve, seeing only the wire value w = Z mod p, cannot determine the sign of Z—this uncertainty provides information-theoretic security.
+
+**Limitations of the original Liu protocol**:
+
+| Limitation | Description |
+|------------|-------------|
+| Physical channel assumed | Original analysis assumed analog signals over physical media (e.g., optical fiber), not digital networks |
+| Passive adversary only | Security proofs addressed eavesdropping but not active tampering, injection, or replay attacks |
+| No authentication | No mechanism to detect man-in-the-middle attackers modifying messages |
+| Key material consumption | Each protocol run consumed fresh key material with no recycling mechanism |
+| Implementation gap | Theoretical protocol without practical implementation or test suite |
+
+**What this implementation adds**:
+
+| Extension | Solution |
+|-----------|----------|
+| TCP/IP operation | Simulates the Gaussian channel digitally; works over any network path |
+| Active MITM protection | Polynomial MAC (Wegman-Carter) authenticates all messages with ITS guarantees |
+| Authenticated config | Session parameters are MAC'd to prevent parameter tampering |
+| PSK reuse safety | Session nonce XOR'd into MAC keys prevents cross-session attacks |
+| Infinite key generation | Pool recycling with hybrid-game composition proof |
+| Sign-bit extraction | Simplified key extraction using only sign bits (1 bit/channel, cleaner security analysis) |
+| Complete implementation | 147 tests, formal bounds, working demo |
+
+The result is a protocol suitable for deployment over public digital channels (TCP/IP), secure against active attackers with unbounded computational power, generating unlimited ITS key material from a single ~12.5 KB pre-shared secret.
+
+### 1.2 Contributions
 
 1. **Full ITS against active attackers**: Confidentiality, authentication, and key agreement integrity—all information-theoretic.
 2. **Infinite key from finite PSK**: Pool recycling with provable composition security.
