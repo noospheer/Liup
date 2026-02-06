@@ -2,25 +2,29 @@
 """
 Liup Demo: Information-Theoretic Key Agreement
 
-This demo runs a complete key agreement between a local server and client,
-generating ~1 million bits of information-theoretically secure key material.
+Usage:
+    python demo.py           # Single batch demo
+    python demo.py --stream  # Continuous streaming (Ctrl+C to stop)
 """
 
 from liuproto.link import NetworkServerLink, NetworkClientLink
 from liuproto.endpoint import Physics
 import os
+import sys
 import threading
 import time
 import random
 
-def main():
+
+def run_single():
+    """Run a single batch demo."""
     print("=" * 60)
     print("Liup: Information-Theoretic Key Agreement Demo")
     print("=" * 60)
 
     # Parameters
-    B = 100_000          # bits per run
-    n_runs = 10          # runs per batch
+    B = 100_000
+    n_runs = 10
     port = random.randint(10000, 60000)
     address = ('127.0.0.1', port)
 
@@ -35,7 +39,7 @@ def main():
     server = NetworkServerLink(address, pre_shared_key=psk)
     server_thread = threading.Thread(target=server.run_batch_signbit_nopa)
     server_thread.start()
-    time.sleep(0.1)  # Let server bind
+    time.sleep(0.1)
     print(f"    Listening on {address[0]}:{address[1]}")
 
     # Step 3: Run client
@@ -49,21 +53,15 @@ def main():
 
     start = time.perf_counter()
     result = client.run_signbit_nopa(
-        B=B,
-        n_runs=n_runs,
-        n_batches=1,
-        mod_mult=0.5,      # σ/p = 2 (recommended for security)
-        n_test_rounds=0,   # Skip verification for demo speed
+        B=B, n_runs=n_runs, n_batches=1,
+        mod_mult=0.5, n_test_rounds=0,
     )
     elapsed = time.perf_counter() - start
-
     server_thread.join()
 
     # Step 4: Results
     key_bits = result['secure_bits']
     throughput = len(key_bits) / elapsed / 1e6
-
-    # Convert to string for display
     key_str = ''.join(str(int(b)) for b in key_bits[:256])
     key_hex = hex(int(key_str[:128], 2))[2:].zfill(32)
 
@@ -87,6 +85,87 @@ def main():
     print("\n" + "=" * 60)
     print("Demo complete!")
     print("=" * 60)
+
+
+def run_stream():
+    """Run continuous streaming demo."""
+    B = 100_000
+    n_runs = 10
+
+    print("=" * 60)
+    print("Liup Streaming Demo - Continuous ITS Key Generation")
+    print("=" * 60)
+    print("Press Ctrl+C to stop\n")
+
+    psk = os.urandom(32 + (B // 8) + 100)
+
+    total_bits = 0
+    total_batches = 0
+    start_time = time.perf_counter()
+
+    try:
+        while True:
+            port = random.randint(20000, 60000)
+            address = ('127.0.0.1', port)
+
+            server = NetworkServerLink(address, pre_shared_key=psk)
+            server_result = [None]
+
+            def run_server():
+                server_result[0] = server.run_batch_signbit_nopa()
+
+            t = threading.Thread(target=run_server)
+            t.start()
+            time.sleep(0.05)
+
+            physics = Physics(1, 0.8, 0.1, 5, 0, 0, 0, 0.2)
+            client = NetworkClientLink(address, physics, pre_shared_key=psk)
+
+            batch_start = time.perf_counter()
+            result = client.run_signbit_nopa(
+                B=B, n_runs=n_runs, n_batches=1,
+                mod_mult=0.5, n_test_rounds=0
+            )
+            batch_time = time.perf_counter() - batch_start
+            t.join()
+
+            bits = len(result['secure_bits'])
+            total_bits += bits
+            total_batches += 1
+            elapsed = time.perf_counter() - start_time
+
+            batch_mbps = bits / batch_time / 1e6
+            avg_mbps = total_bits / elapsed / 1e6
+
+            sys.stdout.write(
+                f"\rBatch {total_batches:4d} | "
+                f"{bits/1000:.0f}k bits in {batch_time:.2f}s | "
+                f"Batch: {batch_mbps:.2f} Mbps | "
+                f"Avg: {avg_mbps:.2f} Mbps | "
+                f"Total: {total_bits/1e6:.2f} Mbit   "
+            )
+            sys.stdout.flush()
+
+    except KeyboardInterrupt:
+        pass
+
+    elapsed = time.perf_counter() - start_time
+    print(f"\n\n{'=' * 60}")
+    print(f"Session Complete")
+    print(f"{'=' * 60}")
+    print(f"  Total batches: {total_batches}")
+    print(f"  Total bits:    {total_bits:,} ({total_bits/1e6:.2f} Mbit)")
+    print(f"  Total time:    {elapsed:.1f} seconds")
+    print(f"  Avg throughput: {total_bits/elapsed/1e6:.2f} Mbps")
+    print(f"{'=' * 60}")
+
+
+def main():
+    if '--stream' in sys.argv:
+        run_stream()
+    else:
+        run_single()
+
 
 if __name__ == '__main__':
     main()
