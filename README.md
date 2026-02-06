@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ## Abstract
 
-Building on the foundational work of Pengfei Liu [1, 2], who demonstrated that information-theoretic security can be achieved through band-limited Gaussian noise exchange, we present an extended implementation suitable for classical TCP/IP networks. Two parties sharing a finite pre-shared key (PSK) of ~12.5 KB can generate an **unlimited stream** of information-theoretically secure (ITS) key material at ~3 Mbps, secure against active man-in-the-middle attackers with unbounded computational power. Where Liu's original protocol assumed physical channels and passive eavesdroppers, this implementation adds authenticated message exchange, active attack resistance, and a pool recycling mechanism for infinite key generation—all while preserving the information-theoretic guarantees. The protocol requires no quantum channel, no computational hardness assumptions, and no key material beyond the initial PSK. Security rests on two assumptions: (1) access to true randomness, and (2) one shared secret established out-of-band. We provide a complete implementation with 147 passing tests, formal security bounds, and a hybrid-game composition proof for the key recycling mechanism.
+Building on the foundational work of Pau-Lo Liu [1, 2], who demonstrated that information-theoretic security can be achieved through band-limited Gaussian noise exchange, we present an extended implementation suitable for classical TCP/IP networks. Two parties sharing a finite pre-shared key (PSK) of ~12.5 KB can generate an **unlimited stream** of information-theoretically secure (ITS) key material at ~3 Mbps, secure against active man-in-the-middle attackers with unbounded computational power. Where Liu's original protocol assumed physical channels and passive eavesdroppers, this implementation adds authenticated message exchange, active attack resistance, and a pool recycling mechanism for infinite key generation—all while preserving the information-theoretic guarantees. The protocol requires no quantum channel, no computational hardness assumptions, and no key material beyond the initial PSK. Security rests on two assumptions: (1) access to true randomness, and (2) one shared secret established out-of-band. We provide a complete implementation with 147 passing tests, formal security bounds, and a hybrid-game composition proof for the key recycling mechanism.
 
 ---
 
@@ -30,7 +30,7 @@ The protocol generates unlimited ITS key material from this finite PSK through a
 
 ### 1.1 Background: The Liu Protocol
 
-This implementation builds on the key agreement protocol introduced by Pengfei Liu [1, 2], which established that two parties can generate shared secret bits by exchanging band-limited Gaussian noise signals over a physical channel.
+This implementation builds on the key agreement protocol introduced by Pau-Lo Liu [1, 2], which established that two parties can generate shared secret bits by exchanging band-limited Gaussian noise signals over a physical channel.
 
 **Core insight from Liu**: When Alice and Bob exchange values Z mod p (where Z is drawn from a Gaussian distribution with σ >> p), the wrapped distribution is nearly uniform. An eavesdropper Eve, seeing only the wire value w = Z mod p, cannot determine the sign of Z—this uncertainty provides information-theoretic security.
 
@@ -458,9 +458,9 @@ This is ~3–10× slower than AES, which is the inherent cost of information-the
 
 ## 9. References
 
-[1] Liu, P., "A key agreement protocol using band-limited random signals and feedback," *Journal of Lightwave Technology* 27(23), 2009.
+[1] Liu, Pau-Lo, "A key agreement protocol using band-limited random signals and feedback," *Journal of Lightwave Technology* 27(23), 2009.
 
-[2] Liu, P., "Prediction accuracy of band-restricted random signals and security risk in statistical key exchange," *Fluctuations and Noise Letters* 9(4), 2010.
+[2] Liu, Pau-Lo, "Prediction accuracy of band-restricted random signals and security risk in statistical key exchange," *Fluctuations and Noise Letters* 9(4), 2010.
 
 [3] Wegman, M. N. and Carter, J. L., "New hash functions and their use in authentication and set equality," *Journal of Computer and System Sciences* 22(3), 1981.
 
