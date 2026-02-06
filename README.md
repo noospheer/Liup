@@ -601,12 +601,12 @@ This is ~3–10× slower than AES, which is the inherent cost of information-the
 
 ## 9. References
 
-[1] Liu, Pau-Lo, "A key agreement protocol using band-limited random signals and feedback," *Journal of Lightwave Technology* 27(23), 2009. ([PDF](Liu2009.pdf))
+[1] Liu, Pau-Lo, "A key agreement protocol using band-limited random signals and feedback," *Journal of Lightwave Technology* 27(23), 2009. ([PDF](papers/Liu2009.pdf))
 
-[2] Liu, Pau-Lo, "Prediction accuracy of band-restricted random signals and security risk in statistical key exchange," *Fluctuations and Noise Letters* 9(4), 2010. ([PDF](Liu2010.pdf))
+[2] Liu, Pau-Lo, "Prediction accuracy of band-restricted random signals and security risk in statistical key exchange," *Fluctuations and Noise Letters* 9(4), 2010. ([PDF](papers/Liu2010.pdf))
 
-[3] Liu, Pau-Lo and Josan, Madhur S., "Quantization noise in statistical key exchange," *Fluctuation and Noise Letters* 10(3), 2011. ([PDF](LiuJosan2011.pdf))
+[3] Liu, Pau-Lo and Josan, Madhur S., "Quantization noise in statistical key exchange," *Fluctuation and Noise Letters* 10(3), 2011. ([PDF](papers/LiuJosan2011.pdf))
 
-[4] Wegman, M. N. and Carter, J. L., "New hash functions and their use in authentication and set equality," *Journal of Computer and System Sciences* 22(3), 1981.
+[4] Wegman, M. N. and Carter, J. L., "New hash functions and their use in authentication and set equality," *Journal of Computer and System Sciences* 22(3), 1981. ([PDF](papers/WegmanCarter1981.pdf))
 
-[5] Impagliazzo, R., Levin, L. A., and Luby, M., "Pseudo-random generation from one-way functions," *STOC*, 1989.
+[5] Impagliazzo, R., Levin, L. A., and Luby, M., "Pseudo-random generation from one-way functions," *STOC*, 1989. ([PDF](papers/ImpagliazzoLevinLuby1989.pdf))
