@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Compiled extensions
+*.so
+*.o
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.Rhistory
+Thumbs.db
+
+# Test/Debug
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Keys (never commit secrets)
+*.key
+*.pem
