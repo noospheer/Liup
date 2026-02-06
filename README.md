@@ -382,13 +382,13 @@ The ~1000× gap to computational crypto (AES) decomposes into addressable and fu
 
 **Optimization tiers:**
 
-| Configuration | Throughput | Gap to AES | Investment |
-|---------------|------------|------------|------------|
-| Current (Python/numpy) | ~3 Mbps | 3000× | — |
-| C extension + SIMD + multithread | ~30 Mbps | 300× | ~$10k |
-| + Hardware TRNG | ~300 Mbps | 30× | ~$100k |
-| Custom ASIC | ~3 Gbps | 3× | ~$1M+ |
-| Theoretical limit | ~10 Gbps | 1× | Physics |
+| Configuration | Throughput | Gap to AES | 
+|---------------|------------|------------|
+| Current (Python/numpy) | ~3 Mbps | 3000× |
+| C extension + SIMD + multithread | ~30 Mbps | 300× |
+| + Hardware TRNG | ~300 Mbps | 30× |
+| Custom ASIC | ~3 Gbps | 3× |
+| Theoretical limit | ~10 Gbps | 1× |
 
 **Fundamental limits:**
 
