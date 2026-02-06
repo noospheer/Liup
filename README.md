@@ -214,7 +214,8 @@ Run this to see the protocol in action:
 
 ```bash
 cd src
-python demo.py
+python demo.py           # Single batch: generates 1M bits
+python demo.py --stream  # Continuous: realtime stats, Ctrl+C to stop
 ```
 
 Or paste this into Python:
