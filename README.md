@@ -268,22 +268,135 @@ No lattice hardness, no factoring, no random oracles. The protocol has zero comp
 ```bash
 # Clone and install dependencies
 cd Liup/src
-pip install numpy scipy
+pip install numpy scipy pycryptodome   # pycryptodome needed only for ECDH mode
 ```
 
-### 5.2 Quick Demo (Single Machine)
+### 5.2 Demo CLI
 
-Run this to see the protocol in action:
+The demo supports several subcommands:
+
+```
+python demo.py keygen  [--psk-file PATH] [--B N] [--rng-mode MODE]
+python demo.py server  [--psk-file PATH] [--host ADDR] [--port N] [--stream]
+python demo.py client  [--psk-file PATH] --host ADDR  [--port N] [--B N]
+                       [--n-runs N] [--rng-mode MODE] [--stream]
+python demo.py local   [--rng-mode MODE] [--stream]
+```
+
+Default port: **7767**. Default B: 100,000. Default n_runs: 10.
+
+#### Local demo (single machine)
+
+Runs server and client in one process, validates that keys match:
 
 ```bash
 cd src
-python demo.py --urandom           # Single batch: generates 1M bits (CSPRNG)
-python demo.py --rdseed            # Single batch: generates 1M bits (RDSEED + Toeplitz)
-python demo.py --urandom --stream  # Continuous: realtime stats, Ctrl+C to stop
-python demo.py --rdseed --stream   # Continuous with RDSEED + Toeplitz
+python demo.py local                          # Single batch, os.urandom
+python demo.py local --rng-mode rdseed        # Single batch, RDSEED + Toeplitz
+python demo.py local --stream                 # Continuous streaming, Ctrl+C to stop
+python demo.py local --rng-mode rdseed --stream
 ```
 
-Or paste this into Python:
+The old `--urandom`/`--rdseed` flags still work for backward compatibility:
+
+```bash
+python demo.py --urandom           # Same as: demo.py local
+python demo.py --rdseed --stream   # Same as: demo.py local --rng-mode rdseed --stream
+```
+
+### 5.3 Two-Machine Setup
+
+#### Option A: Automatic ECDH (no PSK file needed)
+
+The simplest way to run across two machines. When `--psk-file` is omitted, the server and client perform an ephemeral P-256 ECDH key exchange to establish the PSK automatically.
+
+```bash
+# Machine A (server)
+python demo.py server
+
+# Machine B (client)
+python demo.py client --host 203.0.113.5
+```
+
+Both sides print a PSK fingerprint for TOFU (trust-on-first-use) verification:
+
+```
+  PSK fingerprint: bb36f78755086aba
+
+  *** WARNING: PSK established via ECDH (P-256) ***
+  *** Security is COMPUTATIONAL, not information-theoretic ***
+  *** For ITS security, use: demo.py keygen + --psk-file ***
+
+  Verify this fingerprint matches on both sides (TOFU).
+```
+
+Streaming mode works the same way (ECDH happens once, PSK reused for all batches):
+
+```bash
+python demo.py server --stream                              # Machine A
+python demo.py client --host 203.0.113.5 --stream           # Machine B
+```
+
+**Security note**: ECDH provides computational security (128-bit, P-256). An adversary with unbounded computation could break ECDH and recover the PSK. For information-theoretic security, use Option B.
+
+#### Option B: Pre-shared key file (ITS security)
+
+For full ITS security, generate a PSK file and copy it to both machines out-of-band:
+
+```bash
+# Generate PSK
+python demo.py keygen --psk-file session.psk
+
+# Copy to remote machine securely
+scp session.psk user@machineB:~/Liup/src/
+```
+
+The `keygen` command prints a SHA-256 fingerprint for verification:
+
+```
+PSK written to session.psk
+  Size:        12,632 bytes
+  B:           100,000
+  RNG mode:    urandom
+  Fingerprint: fcef18289acde8e0
+```
+
+Then run with `--psk-file` on both sides:
+
+```bash
+# Machine A
+python demo.py server --psk-file session.psk
+
+# Machine B
+python demo.py client --psk-file session.psk --host 203.0.113.5
+```
+
+Streaming:
+
+```bash
+python demo.py server --psk-file session.psk --stream       # Machine A
+python demo.py client --psk-file session.psk --host 203.0.113.5 --stream  # Machine B
+```
+
+#### Randomness modes
+
+Both `urandom` and `rdseed` modes work in distributed mode. The client controls the randomness mode:
+
+```bash
+python demo.py client --host 203.0.113.5 --rng-mode rdseed
+```
+
+When using ECDH, the client sends `rng_mode` to the server during the handshake so both sides derive a correctly-sized PSK. When using `--psk-file`, generate the PSK with the matching mode:
+
+```bash
+python demo.py keygen --psk-file session.psk --rng-mode rdseed
+```
+
+See Section 8.1 for the security analysis of each randomness mode.
+
+### 5.4 Python API
+
+For programmatic use:
 
 ```python
 from liuproto.link import NetworkServerLink, NetworkClientLink
@@ -298,58 +411,15 @@ server = NetworkServerLink(('127.0.0.1', 9999), pre_shared_key=psk)
 threading.Thread(target=server.run_batch_signbit_nopa).start()
 
 # Step 3: Run client
-physics = Physics(1, 0.8, 0.1, 5, 0, 0, 0, 0.2)  # Channel simulation params (not critical for demo)
+physics = Physics(1, 0.8, 0.1, 5, 0, 0, 0, 0.2)
 client = NetworkClientLink(('127.0.0.1', 9999), physics, pre_shared_key=psk)
 result = client.run_signbit_nopa(B=100000, n_runs=10)
 
 # Step 4: Use your new ITS key!
 print(f"Generated {len(result['secure_bits']):,} bits of ITS key")
-key_str = ''.join(str(b) for b in result['secure_bits'][:64])
-print(f"Key (first 64 bits): {key_str}")
 ```
 
-### 5.3 Two-Machine Setup
-
-**On Machine A (Server):**
-
-```python
-# server.py
-from liuproto.link import NetworkServerLink
-import os
-
-# Load PSK (must match client's PSK exactly)
-psk = open('shared_secret.key', 'rb').read()
-
-server = NetworkServerLink(('0.0.0.0', 9999), pre_shared_key=psk)
-print("Server listening on port 9999...")
-result = server.run_batch_signbit_nopa()
-print(f"Generated {len(result['secure_bits']):,} bits")
-```
-
-**On Machine B (Client):**
-
-```python
-# client.py
-from liuproto.link import NetworkClientLink
-from liuproto.endpoint import Physics
-
-# Load PSK (must match server's PSK exactly)
-psk = open('shared_secret.key', 'rb').read()
-
-physics = Physics(1, 0.8, 0.1, 5, 0, 0, 0, 0.2)
-client = NetworkClientLink(('server-ip', 9999), physics, pre_shared_key=psk)
-result = client.run_signbit_nopa(B=100000, n_runs=10)
-print(f"Generated {len(result['secure_bits']):,} bits")
-```
-
-**Generate a PSK file:**
-
-```bash
-# Run once, copy to both machines securely
-python -c "import os; open('shared_secret.key','wb').write(os.urandom(32+12500))"
-```
-
-### 5.4 API Reference
+### 5.5 API Reference
 
 ```python
 # Client options
@@ -369,7 +439,7 @@ result['sigma_verified']   # True if σ/p was verified
 
 **Note on `rng_mode`**: When using `rng_mode='rdseed'`, the PSK must be 96 bytes longer than usual (for the Toeplitz extraction seed). The rdseed mode requires a CPU with RDSEED support (Intel Broadwell+ / AMD Zen+). See Section 8.1 for the security analysis of each mode.
 
-### 5.5 Running Tests
+### 5.6 Running Tests
 
 ```bash
 cd src

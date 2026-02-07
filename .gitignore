@@ -31,3 +31,4 @@ htmlcov/
 # Keys (never commit secrets)
 *.key
 *.pem
+*.psk

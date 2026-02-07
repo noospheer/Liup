@@ -2912,6 +2912,11 @@ class NetworkLinkRequestHandler(socketserver.BaseRequestHandler):
 
         return json_string
 
+class _ReusableTCPServer(socketserver.TCPServer):
+    """TCPServer with SO_REUSEADDR so the port can be rebound immediately."""
+    allow_reuse_address = True
+
+
 class NetworkServerLink(object):
     """ A link class for a network-accessible server.
 
@@ -2921,7 +2926,7 @@ class NetworkServerLink(object):
         >>> bits = link.run_proto()
     """
     def __init__(self, address, storage=None, pre_shared_key=None):
-        self.server = socketserver.TCPServer(address, NetworkLinkRequestHandler)
+        self.server = _ReusableTCPServer(address, NetworkLinkRequestHandler)
         self.server.physics = []
         self.server.storage = storage
         self.server.pre_shared_key = pre_shared_key
@@ -2988,7 +2993,8 @@ class NetworkClientLink(object):
 
     >>> link = NetworkClientLink(address, endpoint, storage)
     >>> bits = [link.run_proto() for i in range(100)]"""
-    def __init__(self, address, physics, storage=None, pre_shared_key=None):
+    def __init__(self, address, physics, storage=None, pre_shared_key=None,
+                 connect_timeout=None):
         self.address = address
         self.physics = physics
         self.storage = storage
@@ -2996,7 +3002,12 @@ class NetworkClientLink(object):
         self.pre_shared_key = pre_shared_key
 
         self.client_socket = socket.socket()
+        if connect_timeout is not None:
+            self.client_socket.settimeout(connect_timeout)
         self.client_socket.connect(self.address)
+        self.client_socket.settimeout(None)
+        self.client_socket.setsockopt(
+            socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
     def run_proto(self):
         self.physics.reset()
