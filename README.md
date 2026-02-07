@@ -387,6 +387,8 @@ All 163 tests (162 pass, 1 excluded). Grouped by test class.
 |------|--------|-------------|
 | test_wire_values_uniform_post_ramp | Excluded | Chi-squared uniformity test on post-ramp wire values |
 
+*Why excluded*: This test runs a chi-squared goodness-of-fit test (α=0.01) on post-ramp wire values to confirm the wrapped distribution is uniform. Because it is a statistical hypothesis test, it has a ~1% false-failure rate by construction — even when the distribution is perfectly uniform, the test rejects about 1 in 100 runs. This makes it inherently flaky in CI. The property it checks (wire uniformity at σ/p ≫ 1) is proven analytically by Theorem 1 and verified indirectly by all other security tests, so excluding it loses no coverage.
+
 **TestHigherOrderCorrelation** (3 tests)
 
 | Test | Status | Description |
