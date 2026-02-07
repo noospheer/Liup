@@ -377,11 +377,302 @@ python -m pytest test_security.py -v -k "not TestUniformity"
 # 162 passed
 ```
 
-Key test classes:
-- `TestSigmaVerification`: 15 tests for active MITM protection
-- `TestSignbitNoPA`: 7 tests for pool-flat infinite operation
-- `TestSignbitProtocol`: 7 tests for signbit-ITS with PA
-- `TestRdseedMode`: 15 tests for RDSEED + Toeplitz extraction mode
+#### Complete Test Inventory
+
+All 163 tests (162 pass, 1 excluded). Grouped by test class.
+
+**TestUniformity** (1 test, excluded — statistically flaky)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_wire_values_uniform_post_ramp | Excluded | Chi-squared uniformity test on post-ramp wire values |
+
+**TestHigherOrderCorrelation** (3 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_lag2_autocorrelation | Pass | Lag-2 autocorrelation near zero |
+| test_lag3_autocorrelation | Pass | Lag-3 autocorrelation near zero |
+| test_third_order_statistic | Pass | Third-order statistic near zero |
+
+**TestVarianceAttack** (1 test)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_variance_indistinguishable | Pass | Wire variance indistinguishable for +/− alpha |
+
+**TestMLAttack** (1 test)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_ml_attack_near_chance | Pass | ML eavesdropper accuracy near 50% |
+
+**TestLeakageEstimator** (5 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_leakage_increases_with_modulus | Pass | Eve info increases with larger modulus |
+| test_early_exchanges_high_leakage | Pass | Early ramp-up exchanges leak more |
+| test_auto_calibrated_small_leakage | Pass | Auto-calibrated modulus yields small leakage |
+| test_estimate_sigma_z | Pass | estimate_sigma_z matches Parseval scaling |
+| test_report_keys | Pass | Leakage report contains expected keys |
+
+**TestPrivacyAmplification** (7 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_deterministic_with_same_seed | Pass | Same seed produces same hash output |
+| test_output_length | Pass | Output has exactly n_secure bits |
+| test_matching_keys_after_pa | Pass | Matching raw bits yield matching PA output |
+| test_compute_secure_length | Pass | Secure length equals n_raw minus overhead |
+| test_secure_length_zero_when_insufficient | Pass | Too much leakage gives zero secure length |
+| test_invalid_n_secure | Pass | n_secure exceeding n_raw raises ValueError |
+| test_output_is_binary | Pass | All PA output bits are 0 or 1 |
+
+**TestReconciliation** (3 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_corrects_known_errors | Pass | Cascade corrects small number of errors |
+| test_no_errors_minimal_leakage | Pass | No errors yields only parity-check leakage |
+| test_reference_unchanged | Pass | Reference bits_a not modified by reconciliation |
+
+**TestEndToEndPA** (1 test)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_matching_secure_keys | Pass | Full pipeline produces matching secure keys |
+
+**TestRigorousMIBound** (5 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_rigorous_bound_above_estimate | Pass | Rigorous upper bound ≥ point estimate |
+| test_rigorous_bound_at_most_one | Pass | MI of binary secret at most 1 |
+| test_small_modulus_low_leakage | Pass | Small modulus yields low MI bound |
+| test_hoeffding_correction_positive | Pass | Hoeffding correction is positive |
+| test_result_keys | Pass | Rigorous MI result has expected keys |
+
+**TestSecurityProof** (10 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_compute_epsilon_basic | Pass | Epsilon decreases with more safety margin |
+| test_compute_epsilon_insecure | Pass | Insecure parameters give epsilon 1.0 |
+| test_compute_secure_length_from_epsilon | Pass | Correct secure length for target epsilon |
+| test_compute_secure_length_zero_when_impossible | Pass | Too much leakage gives zero secure length |
+| test_verify_security_report | Pass | verify_security returns all expected keys |
+| test_verify_security_minentropy | Pass | Min-entropy accounting mode works correctly |
+| test_verify_security_is_secure | Pass | Enough margin reports is_secure=True |
+| test_verify_security_not_secure | Pass | Too much leakage reports is_secure=False |
+| test_full_security_analysis | Pass | Full analysis returns consistent keys |
+| test_epsilon_invalid_input | Pass | Bad epsilon input raises ValueError |
+
+**TestAnalyticMIBound** (8 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_tv_bound_decreases_with_sigma | Pass | TV bound decreases as σ/p increases |
+| test_tv_bound_at_most_one | Pass | TV distance at most 1 |
+| test_analytic_bound_useful_small_p | Pass | Analytic bound useful for small p/σ |
+| test_analytic_bound_trivial_large_p | Pass | Large p saturates bound at 1 |
+| test_analytic_bound_consistent_with_numerical | Pass | Analytic bound ≥ numerical MC estimate |
+| test_analytic_bound_keys | Pass | Analytic bound result has expected keys |
+| test_proven_security_analysis | Pass | Proven analysis secure for small p |
+| test_proven_security_trivial_large_p | Pass | Proven analysis not secure for large p |
+
+**TestSecondOrderMIBound** (9 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_second_order_tv_less_than_first_order | Pass | Second-order TV < first-order TV |
+| test_second_order_tv_scales_as_r1_squared | Pass | TV scales approximately as r₁² |
+| test_second_order_tv_at_most_one | Pass | Second-order TV at most 1 |
+| test_second_order_bound_useful_at_moderate_p | Pass | Useful where first-order is trivial |
+| test_second_order_bound_at_p4 | Pass | Non-trivial at p=4.0, few exchanges |
+| test_second_order_keys | Pass | Result has expected keys |
+| test_improvement_ratio | Pass | Improvement ratio > 1 over first-order |
+| test_proven_security_uses_hmm_hmin | Pass | Uses HMM-based min-entropy |
+| test_first_order_bound_consistent_with_mc | Pass | First-order bound ≥ MC estimate |
+
+**TestMinEntropyBound** (7 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_tv_run_monotone_in_exchanges | Pass | Per-run TV increases with more exchanges |
+| test_tv_run_at_most_one | Pass | Per-run TV at most 1 |
+| test_coupling_tighter_than_union | Pass | Coupling bound ≤ union bound |
+| test_h_min_positive_small_p | Pass | Min-entropy positive for small p/σ |
+| test_h_min_zero_large_p | Pass | Min-entropy near zero for large p/σ |
+| test_result_keys | Pass | Result has expected keys |
+| test_numerical_spot_check | Pass | Spot-check h_min at p=2.5σ, n_ex=3 |
+
+**TestReconciliationLeakageBound** (2 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_bound_exceeds_actual | Pass | Deterministic bound exceeds actual leakage |
+| test_bound_positive | Pass | Bound positive for any n > 0 |
+
+**TestProvenITSKeyExtraction** (2 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_its_key_extraction_proven | Pass | Proven ITS key extraction with HMM min-entropy |
+| test_its_security_report | Pass | Full security report uses proven HMM accounting |
+
+**TestTCPSecurityModel** (11 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_exchange_returns_wrapped | Pass | Wire values within (−p/2, p/2] |
+| test_unwrapped_gives_eve_more_info | Pass | Modular wrapping reduces Eve's information |
+| test_its_proof_chain_documented | Pass | Result contains per-assumption validation |
+| test_default_rng_not_its | Pass | Default PRNG reports computational security |
+| test_true_rng_flag_enables_its | Pass | True RNG flag enables ITS security |
+| test_true_rng_uses_urandom | Pass | True RNG uses os.urandom, not seed |
+| test_true_rng_gaussian_distribution | Pass | True RNG Gaussians have mean≈0, std≈1 |
+| test_true_rng_noise_matches_hmm_model | Pass | True RNG noise is i.i.d. N(0, σ_z²) |
+| test_prng_noise_is_bandlimited | Pass | Default PRNG has band-limited correlations |
+| test_its_mode_no_unwrap_errors | Pass | ITS mode wire values match HMM simulation |
+| test_correlated_runs_detectable | Pass | Same-seed PRNG runs are not independent |
+
+**TestNetworkAuthChannel** (3 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_network_mode_requires_psk | Pass | Server/client require pre-shared key |
+| test_network_mode_rejects_short_psk | Pass | Short PSK rejected |
+| test_multibit_analysis_includes_network_note | Pass | Analysis includes network security note |
+
+**TestMultibitExtraction** (11 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_z_reconstruction_exact | Pass | Reconstructed Z matches actual values |
+| test_quantization_deterministic | Pass | Same Z values produce identical bits |
+| test_quantization_range | Pass | Quantized bits are all 0 or 1 |
+| test_pguess_per_step | Pass | P_guess decreases with tighter modulus |
+| test_multibit_security_analysis | Pass | Correct sign-based h_min reported |
+| test_batch_multibit_keys_match | Pass | Both parties produce identical keys |
+| test_batch_multibit_sign_entropy | Pass | Multi-bit extraction yields positive key |
+| test_requires_its_mode | Pass | Non-ITS mode raises RuntimeError |
+| test_no_erasure | Pass | run_proto_multibit never returns None |
+| test_z_reconstruction_both_sign_cases | Pass | Z reconstruction exact for both signs |
+| test_z_statistics_match_its_model | Pass | Reconstructed Z is i.i.d. N(0, σ_z²) |
+
+**TestMultibitDecodedZ** (4 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_multibit_hmin_bounded_by_sign | Pass | h_min equals sign-bit min-entropy |
+| test_alpha_none_gives_zero_hmin | Pass | alpha=None gives zero h_min fallback |
+| test_z_lattice_diagnostic_present | Pass | Analysis includes z_lattice_diagnostic |
+| test_n_secure_consistent_with_sign_entropy | Pass | n_secure consistent with h_min × channels |
+
+**TestNetworkMultibit** (5 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_network_multibit_roundtrip | Pass | Network multibit Z sequences match |
+| test_network_multibit_keys_match | Pass | Batch secure keys match both sides |
+| test_network_multibit_auth_encrypted | Pass | Auth field is encrypted, not plaintext |
+| test_network_multibit_requires_psk | Pass | Without PSK raises RuntimeError |
+| test_legacy_sign_bit_unchanged | Pass | Legacy run_proto works without PSK |
+
+**TestNetworkMultibitITS** (9 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_its_mac_consistency | Pass | Same coeffs and keys produce same tag |
+| test_its_mac_different_inputs | Pass | Different coefficients produce different tags |
+| test_its_roundtrip | Pass | ITS roundtrip Z sequences match |
+| test_its_batch_keys_match | Pass | ITS batch secure keys match both sides |
+| test_its_no_mreal_on_wire | Pass | No auth/M_real field in ITS messages |
+| test_its_requires_psk | Pass | Without PSK raises RuntimeError |
+| test_its_psk_too_short | Pass | Short PSK raises ValueError |
+| test_its_discard_on_mismatch | Pass | Small modulus provokes unwrap discards |
+| test_existing_multibit_unchanged | Pass | Existing multibit still works |
+
+**TestNetworkParallelITS** (11 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_parallel_roundtrip | Pass | Parallel ITS roundtrip MAC and Z match |
+| test_parallel_batch_keys_match | Pass | Parallel batch keys match both sides |
+| test_parallel_many_channels | Pass | B=200 channels accepted and verified |
+| test_parallel_requires_psk | Pass | Without PSK raises RuntimeError |
+| test_parallel_psk_too_short | Pass | Short PSK raises ValueError |
+| test_parallel_no_mreal_on_wire | Pass | Binary frames contain only wire data |
+| test_parallel_existing_its_unchanged | Pass | Sequential ITS still works |
+| test_parallel_scaling | Pass | n_secure scales linearly with B |
+| test_psk_recycling_single | Pass | PSK recycled after one batch |
+| test_psk_recycling_chain | Pass | Three successive batches with recycled PSKs |
+| test_psk_recycling_insufficient_output | Pass | Too-small output gives psk_recycled=False |
+
+**TestSignbitProtocol** (7 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_signbit_psk_validation | Pass | PSK size validation for signbit mode |
+| test_signbit_key_agreement | Pass | Server and client produce identical keys |
+| test_signbit_hmin_near_one | Pass | h_min near 1.0 at σ/p=2 |
+| test_signbit_amplification_ratio | Pass | Amplification ratio > 100 at B=100k |
+| test_signbit_key_recycling | Pass | Multiple batches with recycled PSK |
+| test_signbit_net_loss | Pass | Net pool loss per run is small |
+| test_signbit_mac_detects_tampering | Pass | Modified wire values cause MAC failure |
+
+**TestSignbitNoPA** (7 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_nopa_key_agreement | Pass | Server and client produce identical raw keys |
+| test_nopa_pool_flat | Pass | Pool available_bits unchanged after batch |
+| test_nopa_mac_recycling | Pass | Same PSK and deposits give identical MAC keys |
+| test_nopa_continuous_operation | Pass | Three sequential batches, keys match, pool stable |
+| test_nopa_security_epsilon | Pass | Cumulative epsilon < 10⁻¹⁸ at σ/p=2 |
+| test_nopa_throughput | Pass | NoPA produces more bits than PA mode |
+| test_nopa_min_psk | Pass | Works with minimal 32+⌈B/8⌉ byte PSK |
+
+**TestSigmaVerification** (15 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_monitor_passes_normal | Pass | Wire values at σ/p=2 pass chi-squared |
+| test_monitor_detects_drift | Pass | Non-uniform wires trigger SigmaDriftError |
+| test_committed_verify_passes | Pass | Committed verification passes normally |
+| test_committed_verify_bad_sigma | Pass | Low σ/p triggers SigmaDriftError |
+| test_nopa_with_monitor_keys_match | Pass | Committed verify + monitor + keys match |
+| test_zero_test_rounds_skips | Pass | n_test_rounds=0 skips verification |
+| test_monitor_tracks_chi2 | Pass | monitor_chi2_max exists and reasonable |
+| test_config_auth_normal | Pass | Config auth enabled, keys match |
+| test_config_auth_rejects_tamper | Pass | Tampered config raises SigmaDriftError |
+| test_config_auth_replay_protection | Pass | Different nonces produce different MACs |
+| test_config_auth_psk_reuse_safe | Pass | Nonce XOR prevents MAC key recovery |
+| test_sign_tampering_detected | Pass | MAC detects sign bit tampering (MITM) |
+| test_composition_bound_numerical | Pass | Composition bound practical, MAC-dominated |
+| test_pool_nonce_produces_unique_mac_keys | Pass | Different nonces yield different pool MAC keys |
+| test_pool_without_nonce_same_mac_keys | Pass | No nonce uses PSK directly for MAC keys |
+
+**TestRdseedMode** (15 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_toeplitz_extract_dimensions | Pass | Toeplitz produces half-length output |
+| test_toeplitz_extract_deterministic | Pass | Same input and seed gives same output |
+| test_toeplitz_extract_different_seeds | Pass | Different seeds produce different outputs |
+| test_toeplitz_extract_output_binary | Pass | All Toeplitz output bits are 0 or 1 |
+| test_rng_bytes_urandom_length | Pass | urandom returns correct byte length |
+| test_rng_bytes_rdseed_length | Pass | rdseed returns correct byte length |
+| test_batch_rdseed_raw_returns_bytes | Pass | RDSEED raw returns requested byte count |
+| test_batch_rdseed_raw_not_constant | Pass | Two RDSEED calls produce different output |
+| test_validate_psk_urandom_rejects_short | Pass | urandom mode rejects too-short PSK |
+| test_validate_psk_rdseed_requires_extra_96 | Pass | rdseed mode requires 96 extra PSK bytes |
+| test_rdseed_gaussian_shape | Pass | RDSEED Gaussian returns correct array shape |
+| test_rdseed_gaussian_distribution | Pass | RDSEED Gaussians pass normality test |
+| test_rdseed_key_agreement | Pass | Server and client keys match in rdseed mode |
+| test_rdseed_continuous_operation | Pass | Multiple rdseed batches, pool flat, keys match |
+| test_rdseed_config_includes_rng_mode | Pass | Config MAC differs when rng_mode differs |
 
 ---
 
