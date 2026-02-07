@@ -434,7 +434,7 @@ The protocol achieves near-optimal theoretical efficiency:
 
 **Key observations**:
 - **vs QKD**: 300–3000× faster, no quantum hardware, works over any TCP/IP path. Both protocols require a pre-shared secret: QKD needs a short authentication key for its classical channel (basis reconciliation, error estimation, and privacy amplification all require authenticated classical messages — without this, a MITM intercepts both quantum and classical channels undetected); this protocol needs ~12.5 KB. QKD's advantage is needing a shorter initial seed; this protocol's advantage is needing no quantum hardware. Neither truly bootstraps ITS key agreement from scratch — see Section 8.4.
-- **vs computational crypto**: ~1000× slower, which is the inherent cost of ITS—you cannot achieve unconditional security at computational speeds. Note that AES-GCM performs *encryption* (a local operation), while this protocol performs *key agreement* (requiring network round-trips); these are different primitives.
+- **vs computational crypto**: ~1000× slower in the current implementation, partly due to inherent ITS costs (true randomness, authentication) and partly due to optimization headroom not yet explored. Algorithmic or structural improvements could plausibly close 1–2 orders of magnitude of this gap. Note also that AES-GCM performs *encryption* (a local operation), while this protocol performs *key agreement* (requiring network round-trips); these are different primitives.
 - **vs OTP**: OTP consumes 1 bit of key per bit of message. This protocol generates unlimited key from ~12.5 KB of PSK—with information-theoretic security, not computational assumptions. (Generating unlimited output from a finite seed is standard for stream ciphers like ChaCha20; the novelty here is achieving ITS while doing so.)
 
 ### 6.4 Path to Higher Throughput
@@ -469,12 +469,12 @@ The ~1000× gap to computational crypto (AES) decomposes into addressable and fu
 
 3. **Authentication**: Polynomial MAC is O(B) work per run. The constant factor can shrink with hardware (~1 cycle/coefficient achievable), but the linear scaling cannot.
 
-**Why AES is fundamentally faster:**
+**Why AES is faster today:**
 - Fixed 10–14 rounds with dedicated hardware instructions (AES-NI)
 - Uses PRNG (but so can we, with practical security—see Section 8.1)
 - Local computation, no network round-trips for key agreement
 
-The ~3–10× residual gap even with custom silicon is the unavoidable cost of information-theoretic security.
+Some of the residual gap is likely inherent to ITS (true randomness generation, network round-trips for key agreement), but the exact floor is an open question. Algorithmic improvements to the protocol structure, MAC computation, or batching strategy could plausibly narrow the gap further — this implementation has not been optimized beyond basic numpy vectorization.
 
 ---
 
@@ -635,12 +635,12 @@ This protocol requires a pre-shared key (~12.5 KB) established through an out-of
 
 ### 8.5 Performance Ceiling
 
-Even with optimal hardware (custom ASIC + quantum RNG), throughput is fundamentally limited to ~1–10 Gbps due to:
+With current protocol design and optimal hardware (custom ASIC + quantum RNG), throughput is estimated at ~1–10 Gbps, limited by:
 - True randomness generation bandwidth
 - Network round-trip requirements
 - O(B) MAC computation per run
 
-This is ~3–10× slower than AES, which is the inherent cost of information-theoretic security.
+This is ~3–10× slower than AES. Some of this gap is inherent to ITS (true randomness, network key agreement), but the exact performance floor is an open question — algorithmic or structural improvements to the protocol could plausibly narrow it further.
 
 ---
 
