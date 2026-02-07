@@ -237,6 +237,16 @@ since the recycled MAC key has min-entropy ≥ 122 − 128·h(δ_TV) ≈ 122 bit
 
 **Interpretation.** This is analogous to a fair casino: each dice roll is fair regardless of how many previous rolls occurred. The composition bound (Theorem 4) answers "what is the probability that *at least one* roll out of N was unfair?" — which grows with N but is irrelevant to the fairness of any individual roll. For key generation, per-bit security is the correct metric. The protocol provides constant ITS security per output bit, forever, with no modifications required.
 
+**Reconciling Theorems 4 and 5.** Both theorems are correct. They answer different questions:
+
+| | Theorem 4 (composition) | Theorem 5 (per-bit) |
+|---|---|---|
+| **Question** | Is *any* bit across all N runs compromised? | How secure is *this specific* bit? |
+| **Bound** | N × ε (grows linearly) | ε ≈ 10⁻¹⁴ (constant) |
+| **Relevant when** | All output bits are used as a single monolithic secret | Each bit (or block) is used independently for encryption |
+
+There is no contradiction with information theory. The finite PSK is the *trust anchor* (bootstrapping authentication and OTP encryption), not the *entropy source*. The entropy in each output bit comes from the fresh Gaussian draws that run generates — an unlimited external source. The PSK enables the protocol to securely harvest that entropy, but the PSK itself is not "consumed" in an information-theoretic sense: pool recycling replenishes it after each run.
+
 ---
 
 ## 4. Assumptions
