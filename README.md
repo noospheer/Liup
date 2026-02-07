@@ -455,8 +455,8 @@ The ~1000× gap to computational crypto (AES) decomposes into addressable and fu
 
 | Configuration | Throughput | Gap to AES |
 |---------------|------------|------------|
-| Current Python/numpy, `--urandom` | ~2–3 Mbps | 3000× |
 | Current Python/numpy, `--rdseed` | ~0.2 Mbps | 50000× |
+| Current Python/numpy, `--urandom` | ~2–3 Mbps | 3000× |
 | C extension + SIMD + multithread | ~30 Mbps | 300× |
 | + Hardware TRNG | ~300 Mbps | 30× |
 | Custom ASIC | ~3 Gbps | 3× |
