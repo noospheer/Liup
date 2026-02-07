@@ -453,15 +453,16 @@ The ~1000× gap to computational crypto (AES) decomposes into addressable and fu
 
 **Optimization tiers:**
 
-| Configuration | urandom | rdseed | Gap to AES |
-|---------------|---------|--------|------------|
-| Current (Python/numpy) | ~2–3 Mbps | ~0.2 Mbps | 3000–50000× |
-| C extension + SIMD + multithread | ~30 Mbps | ~3 Mbps | 300–3000× |
-| + Hardware TRNG | ~300 Mbps | ~30 Mbps | 30–300× |
-| Custom ASIC | ~3 Gbps | ~300 Mbps | 3–30× |
-| Theoretical limit | ~10 Gbps | ~5 Gbps | 1–2× |
+| Configuration | Throughput | Gap to AES |
+|---------------|------------|------------|
+| Current Python/numpy, `--urandom` | ~2–3 Mbps | 3000× |
+| Current Python/numpy, `--rdseed` | ~0.2 Mbps | 50000× |
+| C extension + SIMD + multithread | ~30 Mbps | 300× |
+| + Hardware TRNG | ~300 Mbps | 30× |
+| Custom ASIC | ~3 Gbps | 3× |
+| Theoretical limit | ~10 Gbps | 1× |
 
-The rdseed mode is ~10× slower than urandom at each tier due to the 2:1 Toeplitz extraction overhead (every byte of output requires two bytes of RDSEED input plus GF(2) matrix multiplication). This is the cost of upgrading from computational to near-ITS randomness.
+The rdseed mode is ~10× slower than urandom due to 2:1 Toeplitz extraction overhead (every output byte requires two RDSEED bytes plus GF(2) matrix multiplication). This is the cost of upgrading from computational to near-ITS randomness.
 
 **Fundamental limits:**
 
