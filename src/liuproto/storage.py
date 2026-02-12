@@ -4,9 +4,13 @@ import copy
 from . import endpoint
 
 try:
-    import xml.etree.cElementTree as ET
+    from defusedxml.ElementTree import (
+        parse as _parse_xml, fromstring as _fromstring_xml)
+    import defusedxml.ElementTree as ET
 except ImportError:
     import xml.etree.ElementTree as ET
+    _parse_xml = ET.parse
+    _fromstring_xml = ET.fromstring
 
 
 class Session(object):
@@ -37,7 +41,7 @@ class Session(object):
 
     @staticmethod
     def from_file(filename):
-        tree = ET.ElementTree(file=filename)
+        tree = _parse_xml(filename)
         return Session.from_xml(tree.getroot())
 
 

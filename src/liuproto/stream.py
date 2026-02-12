@@ -648,7 +648,32 @@ class StreamServer:
                 raise ConnectionError("Client disconnected during handshake")
             header_data += chunk
 
-        params = json.loads(header_data.decode('utf-8'))
+        client_params = json.loads(header_data.decode('utf-8'))
+
+        # Validate client params match server's own config.
+        # A misbehaving client must not dictate the server's physics.
+        for key in self._params:
+            if key not in client_params:
+                conn.sendall(b'\x00')
+                conn.close()
+                raise ValueError(
+                    "Client missing parameter %r" % key)
+            sv, cv = self._params[key], client_params[key]
+            if isinstance(sv, float):
+                if abs(sv - cv) > 1e-12 * max(1.0, abs(sv)):
+                    conn.sendall(b'\x00')
+                    conn.close()
+                    raise ValueError(
+                        "Parameter mismatch: %s server=%r client=%r"
+                        % (key, sv, cv))
+            elif sv != cv:
+                conn.sendall(b'\x00')
+                conn.close()
+                raise ValueError(
+                    "Parameter mismatch: %s server=%r client=%r"
+                    % (key, sv, cv))
+
+        params = self._params  # use server's own params
 
         # Send ack
         conn.sendall(b'\x01')

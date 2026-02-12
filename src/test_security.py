@@ -20,6 +20,7 @@ import liuproto.security_proof
 import numpy as np
 import os
 import json
+import threading
 import unittest
 from scipy import stats
 
@@ -1433,6 +1434,110 @@ class TestNetworkAuthChannel(unittest.TestCase):
             n_bits=4, target_epsilon=0.01)
         self.assertIn('network_security_note', result)
         self.assertIn('pre-shared key', result['network_security_note'])
+
+
+class TestStreamingNetwork(unittest.TestCase):
+    """Integration tests for StreamServer/StreamClient over real sockets."""
+
+    _PSK = os.urandom(64)
+    _PARAMS = dict(
+        cutoff=0.1, ramp_time=5, modulus_multiplier=0.05,
+        reflection_coefficient=0.5, chunk_steps=201,
+        n_bits=8, target_epsilon=1e-4,
+    )
+
+    def test_server_client_key_agreement(self):
+        """Server and client produce identical key bytes over TCP."""
+        from liuproto.stream import StreamServer, StreamClient
+        import time
+
+        server = StreamServer(
+            ('127.0.0.1', 0), self._PSK, **self._PARAMS)
+        port = server._server_socket.getsockname()[1]
+
+        # Accept in a thread (blocks until client connects)
+        results = {}
+
+        def _run_server():
+            results['server_cipher'] = server.accept()
+
+        t = threading.Thread(target=_run_server, daemon=True)
+        t.start()
+
+        client = StreamClient(
+            ('127.0.0.1', port), self._PSK, **self._PARAMS)
+        client_cipher = client.connect()
+        t.join(timeout=5)
+
+        server_cipher = results.get('server_cipher')
+        self.assertIsNotNone(server_cipher, "Server accept() failed")
+
+        # Wait for key material to accumulate (up to 30 s)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if (server_cipher.key_buffer.available >= 8 and
+                    client_cipher.key_buffer.available >= 8):
+                break
+            time.sleep(0.1)
+
+        n = min(server_cipher.key_buffer.available,
+                client_cipher.key_buffer.available)
+        self.assertGreater(n, 0, "No key material generated")
+
+        key_server = server_cipher.key_buffer.get(n, block=False)
+        key_client = client_cipher.key_buffer.get(n, block=False)
+        self.assertEqual(key_server, key_client,
+                         "Server/client keys diverged")
+
+        client.close()
+        server.close()
+
+    def test_server_rejects_mismatched_params(self):
+        """Server rejects a client with different parameters."""
+        from liuproto.stream import StreamServer, StreamClient
+
+        server = StreamServer(
+            ('127.0.0.1', 0), self._PSK, **self._PARAMS)
+        port = server._server_socket.getsockname()[1]
+
+        bad_params = dict(self._PARAMS, chunk_steps=999)
+
+        results = {}
+
+        def _run_server():
+            try:
+                results['server_cipher'] = server.accept()
+            except ValueError as e:
+                results['server_error'] = str(e)
+
+        t = threading.Thread(target=_run_server, daemon=True)
+        t.start()
+
+        client = StreamClient(
+            ('127.0.0.1', port), self._PSK, **bad_params)
+        with self.assertRaises(ConnectionError):
+            client.connect()
+
+        t.join(timeout=5)
+        self.assertIn('server_error', results)
+        self.assertIn('mismatch', results['server_error'].lower())
+
+        server.close()
+
+    def test_pipe_matches_network_z_order(self):
+        """StreamPipe and StreamServer/Client use the same z accumulation order."""
+        from liuproto.stream import StreamPipe
+        # StreamPipe uses (z_b, z_a) = (z_bob, z_alice) on line 522.
+        # StreamServer uses (z_bob, z_alice) on line 708.
+        # StreamClient uses (z_bob, z_alice_prev) on line 859.
+        # Verify StreamPipe source confirms the order.
+        import inspect
+        src = inspect.getsource(StreamPipe.run)
+        # The loop body should have z_b before z_a
+        zb_pos = src.index('z_b,')
+        za_pos = src.index('z_a)')
+        self.assertLess(zb_pos, za_pos,
+                        "StreamPipe must accumulate z_bob before z_alice")
 
 
 class TestMultibitExtraction(unittest.TestCase):

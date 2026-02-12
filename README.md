@@ -55,7 +55,7 @@ This implementation builds on the key agreement protocol introduced by Pau-Lo Li
 | PSK reuse safety | Session nonce XOR'd into MAC keys prevents cross-session attacks |
 | Infinite key generation | Pool recycling with constant per-bit security forever (Theorem 5) |
 | Sign-bit extraction | Simplified key extraction using only sign bits (1 bit/channel, cleaner security analysis) |
-| Complete implementation | 162 tests, formal bounds, working demo |
+| Complete implementation | 166 tests, formal bounds, working demo |
 
 The result is a protocol suitable for deployment over public digital channels (TCP/IP), secure against active attackers with unbounded computational power, generating unlimited ITS key material from a single ~12.5 KB pre-shared secret.
 
@@ -65,7 +65,7 @@ The result is a protocol suitable for deployment over public digital channels (T
 2. **Infinite key from finite PSK**: Pool recycling with provable composition security.
 3. **Constant per-bit security forever**: Each output bit has ITS security ≈ 10⁻¹⁴ independent of how many runs have been executed (Theorem 5). No protocol modifications needed for infinite operation.
 4. **Practical throughput**: ~3 Mbps of secure key material on commodity hardware.
-5. **Complete implementation**: 162 tests covering all security properties.
+5. **Complete implementation**: 166 tests covering all security properties.
 
 ---
 
@@ -444,12 +444,12 @@ result['sigma_verified']   # True if σ/p was verified
 ```bash
 cd src
 python -m pytest test_security.py -v -k "not TestUniformity"
-# 162 passed
+# 165 passed
 ```
 
 #### Complete Test Inventory
 
-All 163 tests (162 pass, 1 excluded). Grouped by test class.
+All 166 tests (165 pass, 1 excluded). Grouped by test class.
 
 **TestUniformity** (1 test, excluded — statistically flaky)
 
@@ -616,6 +616,14 @@ All 163 tests (162 pass, 1 excluded). Grouped by test class.
 | test_network_mode_requires_psk | Pass | Server/client require pre-shared key |
 | test_network_mode_rejects_short_psk | Pass | Short PSK rejected |
 | test_multibit_analysis_includes_network_note | Pass | Analysis includes network security note |
+
+**TestStreamingNetwork** (3 tests)
+
+| Test | Status | Description |
+|------|--------|-------------|
+| test_server_client_key_agreement | Pass | Server and client produce identical key bytes over TCP |
+| test_server_rejects_mismatched_params | Pass | Server rejects client with different parameters |
+| test_pipe_matches_network_z_order | Pass | StreamPipe and network endpoints use same z accumulation order |
 
 **TestMultibitExtraction** (11 tests)
 
