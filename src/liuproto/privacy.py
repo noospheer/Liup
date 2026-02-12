@@ -53,7 +53,7 @@ class PrivacyAmplification:
         if precompute:
             self._matrix = np.array(
                 [self._toeplitz_row(i) for i in range(n_secure)],
-                dtype=np.uint8)
+                dtype=np.uint16)
 
     def _toeplitz_row(self, i):
         """Return row i of the Toeplitz matrix (length n_raw)."""
@@ -82,7 +82,7 @@ class PrivacyAmplification:
             raise ValueError("Expected %d raw bits, got %d" %
                              (self.n_raw, len(raw)))
         if self._matrix is not None:
-            return (self._matrix @ raw) % 2
+            return ((self._matrix @ raw) % 2).astype(np.uint8)
         return self._hash_fft(raw)
 
     def hash_fast(self, raw_bits):
@@ -112,10 +112,10 @@ class PrivacyAmplification:
             if mem_bytes <= 100_000_000:  # ~100 MB threshold
                 self._matrix = np.array(
                     [self._toeplitz_row(i) for i in range(self.n_secure)],
-                    dtype=np.uint8)
-                return (self._matrix @ raw) % 2
+                    dtype=np.uint16)
+                return ((self._matrix @ raw) % 2).astype(np.uint8)
             return self._hash_fft(raw)
-        return (self._matrix @ raw) % 2
+        return ((self._matrix @ raw) % 2).astype(np.uint8)
 
     def _hash_fft(self, raw):
         """Toeplitz hash via FFT-based convolution in O(n log n).

@@ -44,7 +44,11 @@ from .wire import WireCodec
 class AuthCipher:
     """Encrypts auth-channel bytes using a pre-shared key stream.
 
-    Uses ``hashlib.shake_256`` as a deterministic key stream generator.
+    Uses counter-mode ``SHAKE-256`` as a deterministic key stream
+    generator: chunk *i* is ``SHAKE-256(key || i)`` where *i* is an
+    8-byte big-endian counter.  This yields O(1) per chunk instead of
+    the O(offset) cost of re-generating from byte 0 on every call.
+
     The pre-shared key must be at least 32 bytes of true randomness
     for meaningful security.
 
@@ -58,6 +62,8 @@ class AuthCipher:
         Shared secret, at least 32 bytes.
     """
 
+    _CHUNK_SIZE = 8192
+
     def __init__(self, pre_shared_key: bytes):
         if not isinstance(pre_shared_key, (bytes, bytearray)):
             raise TypeError("pre_shared_key must be bytes")
@@ -65,17 +71,24 @@ class AuthCipher:
             raise ValueError(
                 "pre_shared_key must be at least 32 bytes, got %d"
                 % len(pre_shared_key))
-        self._shake = hashlib.shake_256(pre_shared_key)
-        self._offset = 0
+        self._key = bytes(pre_shared_key)
+        self._buf = bytearray()
+        self._chunk_index = 0
+
+    def _fill(self, min_bytes):
+        """Ensure at least *min_bytes* are available in the buffer."""
+        while len(self._buf) < min_bytes:
+            h = hashlib.shake_256(
+                self._key + self._chunk_index.to_bytes(8, 'big'))
+            self._buf.extend(h.digest(self._CHUNK_SIZE))
+            self._chunk_index += 1
 
     def encrypt(self, data: bytes) -> bytes:
         """XOR *data* with the next len(data) bytes of key stream."""
         n = len(data)
-        # shake_256.digest(length) always returns from offset 0, so we
-        # request (offset + n) bytes and slice.
-        stream = self._shake.digest(self._offset + n)
-        ks = stream[self._offset:self._offset + n]
-        self._offset += n
+        self._fill(n)
+        ks = bytes(self._buf[:n])
+        del self._buf[:n]
         return bytes(a ^ b for a, b in zip(data, ks))
 
     def decrypt(self, data: bytes) -> bytes:
@@ -540,6 +553,32 @@ class StreamPipe:
         }
 
 
+_Z_FRAME_SIZE = 8  # 2 wire (clear) + 6 encrypted (2 auth + 4 z)
+
+
+def _encode_z_frame(codec, wire_value, real_value, z_value, cipher):
+    """Encode a frame carrying wire, real, and z values.
+
+    Layout: [2 wire clear][6 encrypted (2 auth + 4 z_float32)].
+    """
+    wire_bytes = codec.encode(wire_value)
+    auth_bytes = codec.encode_auth(real_value)
+    z_bytes = struct.pack('>f', z_value)
+    return wire_bytes + cipher.encrypt(auth_bytes + z_bytes)
+
+
+def _decode_z_frame(codec, data, cipher):
+    """Decode a frame carrying wire, real, and z values.
+
+    Returns (wire_value, real_value, z_value).
+    """
+    wire_val = codec.decode(data[:2])
+    decrypted = cipher.decrypt(data[2:8])
+    auth_val = codec.decode_auth(decrypted[:2])
+    z_val = struct.unpack('>f', decrypted[2:6])[0]
+    return wire_val, auth_val, z_val
+
+
 class StreamServer:
     """TCP server for streaming OTP key generation.
 
@@ -644,37 +683,39 @@ class StreamServer:
         # Bob is the server (second mover)
         def _exchange_loop():
             try:
-                # Receive Alice's first frame
-                frame = _recv_exact(conn, codec.frame_size)
+                # Receive Alice's first frame (includes her z)
+                frame = _recv_exact(conn, _Z_FRAME_SIZE)
                 if frame is None:
                     return
-                wire_in, real_in = codec.decode_frame_encrypted(
-                    frame, dec_cipher)
+                wire_in, real_in, z_alice = _decode_z_frame(
+                    codec, frame, dec_cipher)
 
                 k = 0
                 while not self._stop_event.is_set():
                     # Bob exchange
-                    wire_out, real_out, z_k = physics.exchange(
+                    wire_out, real_out, z_bob = physics.exchange(
                         wire_in, real_in)
 
-                    # Send Bob's frame
-                    conn.sendall(codec.encode_frame_encrypted(
-                        wire_out, real_out, enc_cipher))
+                    # Send Bob's frame (includes his z)
+                    conn.sendall(_encode_z_frame(
+                        codec, wire_out, real_out, z_bob, enc_cipher))
 
                     k += 1
 
-                    # Accumulate if settled
+                    # Accumulate both z values (z_bob then z_alice)
+                    # matching StreamPipe's interleave order.
                     if k >= ramp_threshold:
-                        secure = accum.add_sample(z_k)
-                        if secure is not None:
-                            key_buf.put(secure)
+                        for z in (z_bob, z_alice):
+                            secure = accum.add_sample(z)
+                            if secure is not None:
+                                key_buf.put(secure)
 
                     # Receive Alice's next frame
-                    frame = _recv_exact(conn, codec.frame_size)
+                    frame = _recv_exact(conn, _Z_FRAME_SIZE)
                     if frame is None:
                         break
-                    wire_in, real_in = codec.decode_frame_encrypted(
-                        frame, dec_cipher)
+                    wire_in, real_in, z_alice = _decode_z_frame(
+                        codec, frame, dec_cipher)
             except (ConnectionError, OSError):
                 pass
 
@@ -787,34 +828,40 @@ class StreamClient:
         def _exchange_loop():
             try:
                 # Alice's first exchange
-                wire_out, real_out, _ = physics.exchange(0.0, 0.0)
-                conn.sendall(codec.encode_frame_encrypted(
-                    wire_out, real_out, enc_cipher))
+                wire_out, real_out, z_alice_prev = physics.exchange(
+                    0.0, 0.0)
+                conn.sendall(_encode_z_frame(
+                    codec, wire_out, real_out, z_alice_prev, enc_cipher))
 
                 k = 0
                 while not self._stop_event.is_set():
-                    # Receive Bob's frame
-                    frame = _recv_exact(conn, codec.frame_size)
+                    # Receive Bob's frame (includes his z)
+                    frame = _recv_exact(conn, _Z_FRAME_SIZE)
                     if frame is None:
                         break
-                    wire_in, real_in = codec.decode_frame_encrypted(
-                        frame, dec_cipher)
+                    wire_in, real_in, z_bob = _decode_z_frame(
+                        codec, frame, dec_cipher)
 
                     # Alice exchange
-                    wire_out, real_out, z_k = physics.exchange(
+                    wire_out, real_out, z_alice = physics.exchange(
                         wire_in, real_in)
 
-                    # Send Alice's frame
-                    conn.sendall(codec.encode_frame_encrypted(
-                        wire_out, real_out, enc_cipher))
+                    # Send Alice's frame (includes her z)
+                    conn.sendall(_encode_z_frame(
+                        codec, wire_out, real_out, z_alice, enc_cipher))
 
                     k += 1
 
-                    # Accumulate if settled
+                    # Accumulate both z values (z_bob then z_alice_prev)
+                    # z_alice_prev is the z Alice sent in the frame that
+                    # Bob used for THIS exchange, matching Bob's pairing.
                     if k >= ramp_threshold:
-                        secure = accum.add_sample(z_k)
-                        if secure is not None:
-                            key_buf.put(secure)
+                        for z in (z_bob, z_alice_prev):
+                            secure = accum.add_sample(z)
+                            if secure is not None:
+                                key_buf.put(secure)
+
+                    z_alice_prev = z_alice
 
             except (ConnectionError, OSError):
                 pass
