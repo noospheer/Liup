@@ -3,35 +3,70 @@ r"""Composable security proof for the Liu protocol.
 TCP Security Model — Information-Theoretic Security (ITS)
 =========================================================
 
-This module provides a composable ITS proof against **passive TCP
-eavesdroppers**.  The security model is:
+This module provides a composable ITS proof against **active TCP
+adversaries** who can observe, modify, inject, drop, and reorder TCP
+segments.  The security guarantee has two components:
 
-**Eve's observation model.**  Eve observes all values transmitted over
-the TCP channel.  These are the mod-p wrapped wire values
-W_k ∈ (-p/2, p/2].  The wrapping happens *before* transmission:
+    Confidentiality:  eps_conf  (key indistinguishable from uniform)
+    Authenticity:     eps_auth  (forged runs accepted with negligible prob)
+
+**Eve's capability model.**  Eve has full control of the TCP channel:
+she observes all transmitted values and may arbitrarily modify, inject,
+drop, or reorder segments between Alice and Bob.
+
+**What Eve sees.**  Wire values are mod-p wrapped before transmission:
 ``endpoint.Physics.exchange()`` applies ``_mod_reduce(real_output)``
-(endpoint.py, line 218) before returning the value that goes over TCP
-as JSON.  Eve never sees the unwrapped real-valued signal.
+(endpoint.py, line 218) before returning the value that goes over TCP.
+Eve never sees the unwrapped real-valued signal.  Additionally, Eve
+sees OTP-encrypted sign bits and Wegman-Carter MAC tags.
 
 **Receiver unwrapping.**  The receiver recovers the real-valued signal
 locally via hypothesis tracking (endpoint.py, lines 189-202), using
 its private noise realisations.  This unwrapping is a local computation
 that does not leak information to Eve.
 
-**Why the HMM analysis matches Eve's view.**  The ``_forward_log_likelihood``
+**Confidentiality (wire leakage).**  The ``_forward_log_likelihood``
 function in ``leakage.py`` computes P(W | s_A, s_B) using wrapped wire
-values as input — exactly the observations available to an optimal
-passive TCP eavesdropper.  The proof chain:
+values as input — exactly the observations available to Eve.  The
+proof chain:
 
     HMM forward on wrapped W → P_guess → Hoeffding → H_min → LHL
 
-is therefore a valid ITS proof for passive TCP eavesdroppers.
+bounds the key's distance from uniform for any run whose transcript
+Eve has observed.  Tampered runs are detected by the MAC and discarded
+(see Authentication below), so only clean runs contribute key material,
+and for those runs the HMM confidentiality analysis applies unchanged.
+
+**Authentication (MAC integrity).**  Each protocol run is authenticated
+by a Wegman-Carter polynomial MAC over the Mersenne prime M61 = 2^61 - 1
+(see ``link.py``, ``_its_mac_tag_tree``).  The MAC covers:
+
+1.  Quantized wire values from both parties (wa0, wb0), and
+2.  OTP-encrypted sign bits (bob_sign_enc).
+
+MAC keys (r, s) are derived from the PSK (run 1) or recycled from
+previous output via the ``_SignbitPool`` (run N > 1), with session-nonce
+XOR to ensure freshness.  Configuration parameters are separately
+authenticated by a config MAC with nonce-derived keys.
+
+The MAC forgery probability is at most d / M61 per run, where d is the
+polynomial degree.  This is an information-theoretic bound — it holds
+regardless of Eve's computational power.
+
+If Eve modifies any authenticated data (wire values, encrypted signs),
+the MAC check fails with probability >= 1 - d/M61.  Failed runs are
+discarded and contribute no key material.
+
+**Availability.**  An active Eve can cause MAC failures (runs discarded)
+and pool desynchronization.  This degrades throughput but does not
+compromise confidentiality or authenticity — it is a denial-of-service
+attack, not a key-recovery or key-manipulation attack.
 
 **ITS Assumptions** (see ``ITS_ASSUMPTIONS`` constant):
 
 1. Endpoint noise Z_k is true randomness (hardware RNG, not PRNG)
 2. Modular reduction is implemented correctly (centered mod-p)
-3. Eve is passive (observes TCP traffic only, no active injection)
+3. Alice and Bob share a pre-shared key unknown to Eve
 4. Protocol runs are independent (fresh randomness each run)
 
 Theorem (Composable Security via Leftover Hash Lemma)
@@ -150,6 +185,52 @@ where lambda is the total number of parity comparisons (block-level
 plus binary-search sub-comparisons).  The ``cascade_reconcile``
 function counts and returns this value exactly.
 
+Proof of Condition (C): Authentication Against Active Adversaries
+-----------------------------------------------------------------
+
+The ``signbit_nopa`` protocol authenticates each run using a Wegman-Carter
+polynomial MAC over the Mersenne prime M61 = 2^61 - 1.  The MAC input
+(polynomial coefficients) covers:
+
+    - Quantized wire values from both parties (wa0, wb0), and
+    - OTP-encrypted sign bits (bob_sign_enc).
+
+See ``link.py``, ``_signbit_mac_coeffs`` (lines 556-590).
+
+**Theorem (Authentication).**  For each run, an active adversary who
+modifies any of {wa0, wb0, sign_enc} is detected with probability
+>= 1 - d/M61, where d is the polynomial degree (number of MAC
+coefficients) and M61 = 2^61 - 1.
+
+**Proof.**  The Wegman-Carter polynomial MAC ``h(x) = sum c_i * r^i mod M61``
+with a fresh key (r, s) is d/M61-almost-strongly-universal: for any
+two distinct coefficient vectors c != c', the probability over uniform
+(r, s) that tag(c) = tag(c') is at most d / M61.  Each run uses a
+fresh (r, s) — either from the PSK (run 1) or from the pool-recycled
+output of the previous run (see ``_SignbitPool``, lines 672-748).
+
+**Reduction to confidentiality.**  Runs where Eve does NOT tamper are
+exactly those where Eve's view equals the honest transcript.  For
+those runs, the HMM confidentiality analysis (Condition A) applies
+unchanged.  Tampered runs are detected and discarded — they contribute
+no key material.  Therefore:
+
+    eps_per_run = eps_conf + eps_auth
+               = (2B * delta_TV) + (d / M61)
+
+where delta_TV is the wrapped-Gaussian TV bound per channel.
+
+**Configuration authentication.**  Session parameters are MAC'd
+separately via ``_config_mac_tag`` (link.py, lines 593-611) using
+PSK-derived keys XOR'd with a session nonce, preventing replay and
+parameter manipulation.
+
+**Pool desynchronization under active attack.**  If Eve tampers with
+run N, MAC verification fails on both sides and nothing is deposited
+into the pool.  Subsequent runs use stale pool keys, causing further
+MAC failures.  No wrong keys are ever accepted — this is a DoS, not
+a security break.
+
 Composability
 -------------
 
@@ -225,14 +306,14 @@ from . import reconciliation as _recon_mod
 ITS_ASSUMPTIONS = {
     "true_randomness": "Endpoint noise Z_k is true randomness (hardware RNG, not PRNG)",
     "modular_reduction": "Modular reduction is implemented correctly (centered mod-p into (-p/2, p/2])",
-    "passive_eve": "Eve is passive (observes TCP traffic only, no active injection)",
+    "authenticated_psk": "Alice and Bob share a pre-shared key unknown to Eve",
     "run_independence": "Protocol runs are independent (fresh randomness each run)",
 }
-"""Assumptions required for the ITS proof against passive TCP eavesdroppers.
+"""Assumptions required for the ITS proof against active TCP adversaries.
 
-The security guarantee (composable ITS via Leftover Hash Lemma) holds
-provided all four assumptions are satisfied.  See the module docstring
-for the full security model.
+The security guarantee (composable ITS via Leftover Hash Lemma +
+Wegman-Carter authentication) holds provided all four assumptions are
+satisfied.  See the module docstring for the full security model.
 """
 
 
@@ -284,8 +365,9 @@ def validate_assumptions(rng_is_true_random=False, modulus=0.0):
             "Modular reduction is disabled (modulus=0).  Without "
             "mod-p wrapping, wire values leak the full real-valued signal.")
 
-    # (3) Passive Eve — cannot be verified programmatically.
-    status['passive_eve'] = 'unchecked'
+    # (3) Authenticated PSK — cannot be fully verified programmatically.
+    # The PSK must be shared securely and remain unknown to Eve.
+    status['authenticated_psk'] = 'unchecked'
 
     # (4) Run independence — cannot be fully verified, but we can flag
     # that a shared PRNG across runs makes them deterministically
@@ -634,17 +716,18 @@ def proven_security_analysis(sigma_z, alpha, ramp_time, modulus,
 
     Security Model
     --------------
-    This proves ITS against a **passive TCP eavesdropper** who observes
-    all mod-p wrapped wire values transmitted over the channel.  The
-    wrapping is applied by ``endpoint.Physics.exchange()`` before
-    transmission (via ``_mod_reduce``), so Eve never sees unwrapped
-    real-valued signals.
+    This proves ITS against an **active TCP adversary** who can observe,
+    modify, inject, and drop TCP segments.  Confidentiality is proven
+    via the HMM-based min-entropy chain; authenticity is provided by
+    Wegman-Carter MAC (see Condition (C) in the module docstring).
+    Tampered runs are detected and discarded, so only clean runs
+    contribute key material.
 
     The proof is valid under the assumptions listed in
     ``ITS_ASSUMPTIONS``:
     (1) true randomness for endpoint noise,
     (2) correct modular reduction,
-    (3) passive Eve,
+    (3) Alice and Bob share a PSK unknown to Eve,
     (4) independent protocol runs.
 
     Uses the rigorous proof chain:
@@ -1507,12 +1590,17 @@ def composition_security_bound(sigma_z, modulus, B, n_runs_total,
     THEOREM (Pool Recycling Composition):
 
     The signbit_nopa protocol with pool recycling achieves eps_total-ITS
-    security against passive eavesdroppers, where:
+    security against active adversaries, where:
 
         eps_total <= N * (4*B*delta_TV + d/M61)
 
     with N = n_runs_total, delta_TV = wrapped Gaussian TV bound, d = MAC
     polynomial degree, M61 = 2^61-1 (Mersenne prime).
+
+    The bound covers both confidentiality (wire leakage, eps_tv term)
+    and authenticity (MAC forgery, eps_mac term).  Tampered runs are
+    detected by the Wegman-Carter MAC and discarded; only clean runs
+    contribute key material.
 
     PROOF SKETCH (hybrid game):
 

@@ -299,10 +299,10 @@ class Physics(object):
 
             self._last_real_sent = real_output
             # SECURITY-CRITICAL: Modular reduction before transmission ensures
-            # Eve (a passive TCP eavesdropper) only observes wrapped values
-            # W_k ∈ (-p/2, p/2].  The ITS proof in security_proof.py relies
-            # on this: _forward_log_likelihood computes likelihoods over
-            # wrapped observations, matching exactly what goes over the wire.
+            # Eve only observes wrapped values W_k ∈ (-p/2, p/2].  The ITS
+            # proof in security_proof.py relies on this:
+            # _forward_log_likelihood computes likelihoods over wrapped
+            # observations, matching exactly what goes over the wire.
             return self._mod_reduce(real_output)
         else:
             # --- Classic mode ---

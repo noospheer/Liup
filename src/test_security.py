@@ -1171,7 +1171,7 @@ class TestTCPSecurityModel(unittest.TestCase):
         self.assertIsInstance(status, dict)
         # All four assumptions must be reported
         for key in ['true_randomness', 'modular_reduction',
-                     'passive_eve', 'run_independence']:
+                     'authenticated_psk', 'run_independence']:
             self.assertIn(key, status,
                           "Missing assumption: %s" % key)
             self.assertIn(status[key],

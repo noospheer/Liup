@@ -693,7 +693,7 @@ class LeakageEstimator:
         are the mod-p wrapped values that go over TCP (see
         ``endpoint.Physics.exchange()`` which applies ``_mod_reduce``
         before returning).  Therefore this function computes exactly the
-        likelihoods an optimal passive TCP eavesdropper would use.
+        likelihoods an optimal TCP eavesdropper would use.
 
         The protocol alternation is:
             Alice(0) → Bob(0) → Alice(1) → Bob(1) → ... → Alice(n)
@@ -913,9 +913,9 @@ class LeakageEstimator:
         requires min-entropy (not Shannon MI).
 
         **TCP eavesdropper model:** The analysis uses wrapped (mod-p)
-        wire values, which are exactly what a passive TCP eavesdropper
-        observes.  This is because ``endpoint.Physics.exchange()``
-        applies ``_mod_reduce`` before returning values for transmission.
+        wire values, which are exactly what a TCP eavesdropper observes.
+        This is because ``endpoint.Physics.exchange()`` applies
+        ``_mod_reduce`` before returning values for transmission.
         The unwrapped real-valued signal never leaves the endpoint.
 
         **Theorem (Rigorous Min-Entropy Bound).**
