@@ -4,13 +4,11 @@ import copy
 from . import endpoint
 
 try:
-    from defusedxml.ElementTree import (
-        parse as _parse_xml, fromstring as _fromstring_xml)
+    from defusedxml.ElementTree import parse as _parse_xml
     import defusedxml.ElementTree as ET
 except ImportError:
     import xml.etree.ElementTree as ET
     _parse_xml = ET.parse
-    _fromstring_xml = ET.fromstring
 
 
 class Session(object):

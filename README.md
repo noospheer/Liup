@@ -14,7 +14,7 @@ THIS SOFTWARE IS PROVIDED BY THE CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
 
 ## Abstract
 
-Building on the foundational work of Pau-Lo Liu [1, 2], who demonstrated that information-theoretic security can be achieved through band-limited Gaussian noise exchange, we present an extended implementation suitable for classical TCP/IP networks. Two parties sharing a finite pre-shared key (PSK) of ~12.5 KB can generate an **unlimited stream** of information-theoretically secure (ITS) key material at ~3 Mbps, secure against active man-in-the-middle attackers with unbounded computational power. Where Liu's original protocol assumed physical channels and passive eavesdroppers, this implementation adds authenticated message exchange, active attack resistance, and a pool recycling mechanism for infinite key generation—all while preserving the information-theoretic guarantees. The protocol requires no quantum channel, no computational hardness assumptions, and no key material beyond the initial PSK. Security rests on two assumptions: (1) access to true randomness, and (2) one shared secret established out-of-band. We prove that each output bit has constant ITS security (≈ 10⁻¹⁴) independent of how many runs have been executed, so the protocol runs forever with no security degradation. We provide a complete implementation with 162 passing tests, formal security bounds, and proofs for both composition security and per-bit security of the key recycling mechanism.
+Building on the foundational work of Pau-Lo Liu [1, 2], who demonstrated that information-theoretic security can be achieved through band-limited Gaussian noise exchange, we present an extended implementation suitable for classical TCP/IP networks. Two parties sharing a finite pre-shared key (PSK) of ~12.5 KB can generate an **unlimited stream** of information-theoretically secure (ITS) key material at ~3 Mbps, secure against active man-in-the-middle attackers with unbounded computational power. Where Liu's original protocol assumed physical channels and passive eavesdroppers, this implementation adds authenticated message exchange, active attack resistance, and a pool recycling mechanism for infinite key generation—all while preserving the information-theoretic guarantees. The protocol requires no quantum channel, no computational hardness assumptions, and no key material beyond the initial PSK. Security rests on two assumptions: (1) access to true randomness, and (2) one shared secret established out-of-band. We prove that each output bit has constant ITS security (≈ 10⁻¹⁴) independent of how many runs have been executed, so the protocol runs forever with no security degradation. We provide a complete implementation with 166 tests, formal security bounds, and proofs for both composition security and per-bit security of the key recycling mechanism.
 
 ---
 
@@ -149,7 +149,7 @@ At σ/p = 2, this gives δ_TV ≈ exp(−79) ≈ 10⁻³⁴ per bit.
 ```
 Pr[forgery] ≤ d/M₆₁
 ```
-where d is the polynomial degree. With d ≈ 100,000 (for B=100k), this gives Pr[forgery] ≈ 10⁻¹⁴ per run.
+where d is the polynomial degree (number of MAC coefficients encoding wire bins and encrypted sign bytes). With B=100k and 15-bit bin packing, d = ⌈2B/15⌉ + B ≈ 113,334, giving Pr[forgery] ≈ 5×10⁻¹⁴ per run.
 
 **Theorem 3 (Key Agreement).** If the MAC verification passes, Alice and Bob hold identical key bits. If verification fails, the run is discarded.
 
@@ -157,7 +157,7 @@ where d is the polynomial degree. With d ≈ 100,000 (for B=100k), this gives Pr
 
 **Theorem 4 (Pool Recycling Composition).** The protocol with pool recycling achieves ε_total-ITS security where:
 ```
-ε_total ≤ N × (4B·δ_TV + (d+B)/M₆₁)
+ε_total ≤ N × (4B·δ_TV + d/M₆₁)
 ```
 
 *Proof sketch.* Define N+1 hybrid games:
@@ -174,8 +174,8 @@ Each transition Game k → Game k+1 costs at most 2B·δ_TV by the data processi
 | Attack | Defense | Bound |
 |--------|---------|-------|
 | Tamper with config | Config MAC fails | 10⁻¹⁶ |
-| Tamper with wire values | Run MAC fails | 10⁻¹⁴ |
-| Tamper with encrypted signs | Signs included in MAC | 10⁻¹⁴ |
+| Tamper with wire values | Run MAC fails | ~5×10⁻¹⁴ |
+| Tamper with encrypted signs | Signs included in MAC | ~5×10⁻¹⁴ |
 | Replay old session | Nonce ⊕ key derivation | Unique keys |
 | PSK reuse across sessions | Nonce ⊕ key derivation | Unique keys |
 
@@ -184,9 +184,9 @@ Each transition Game k → Game k+1 costs at most 2B·δ_TV by the data processi
 ### 3.5 Concrete Security
 
 At σ/p = 2, B = 100,000:
-- Per-bit confidentiality: δ_TV + d/M₆₁ ≈ 10⁻¹⁴ (**constant forever**, Theorem 5)
-- Per-run forgery probability: ~10⁻¹⁴ (**constant forever**)
-- All-bits-simultaneously after 10⁹ runs (~100 Tbit): ε ≈ 10⁻⁵ (Theorem 4; less relevant for key generation — see Section 3.7)
+- Per-bit confidentiality: δ_TV + d/M₆₁ ≈ 5×10⁻¹⁴ (**constant forever**, Theorem 5)
+- Per-run forgery probability: ~5×10⁻¹⁴ (**constant forever**)
+- All-bits-simultaneously after 10⁹ runs (~100 Tbit): ε ≈ 5×10⁻⁵ (Theorem 4; less relevant for key generation — see Section 3.7)
 
 ### 3.6 Immunity to the Quantization Noise Attack
 
