@@ -151,10 +151,19 @@ int batch_rdseed(uint8_t *out, int n_bytes)
  * Output bit i = popcount(input_block AND row_i) mod 2.
  *
  * Returns number of output bytes written (n_blocks * 32), or 0 on error.
+ *
+ * seed must be at least 96 bytes (= 64 + 256/8).  Row i reads
+ * seed[byte_off .. byte_off+64] where byte_off = i/8 (max 31),
+ * plus seed[byte_off+64] for the bit-shift carry, so the maximum
+ * index accessed is 31 + 64 = 95.
  */
 int toeplitz_extract(const uint8_t *raw_in, int n_bytes_in,
-                     const uint8_t *seed, uint8_t *out)
+                     const uint8_t *seed, int seed_len,
+                     uint8_t *out)
 {
+    if (seed_len < 96)
+        return 0;
+
     int n_blocks = n_bytes_in / 64;
     if (n_blocks <= 0)
         return 0;

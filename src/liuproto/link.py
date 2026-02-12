@@ -37,7 +37,8 @@ try:
     _fastrand_lib.toeplitz_extract.restype = _ctypes.c_int
     _fastrand_lib.toeplitz_extract.argtypes = [
         _ctypes.c_void_p, _ctypes.c_int,
-        _ctypes.c_void_p, _ctypes.c_void_p]
+        _ctypes.c_void_p, _ctypes.c_int,
+        _ctypes.c_void_p]
     # Probe batch_gaussian in a subprocess to detect SIGILL from
     # binaries compiled with unsupported instruction sets (e.g.
     # -march=native on a different CPU).
@@ -377,6 +378,10 @@ def _toeplitz_extract(raw_bytes, seed_bytes, ratio=2):
     block_bytes_in = in_bits // 8  # 64
     block_bytes_out = out_bits // 8  # 32
 
+    if len(seed_bytes) < 96:
+        raise ValueError(
+            "seed_bytes must be at least 96 bytes, got %d" % len(seed_bytes))
+
     n_blocks = len(raw_bytes) // block_bytes_in
     if n_blocks == 0:
         return b''
@@ -387,7 +392,7 @@ def _toeplitz_extract(raw_bytes, seed_bytes, ratio=2):
         out_buf = (_ctypes.c_uint8 * out_size)()
         ret = _fastrand_lib.toeplitz_extract(
             raw_bytes, n_blocks * block_bytes_in,
-            seed_bytes, out_buf)
+            seed_bytes, len(seed_bytes), out_buf)
         if ret > 0:
             return bytes(out_buf)[:ret]
 
