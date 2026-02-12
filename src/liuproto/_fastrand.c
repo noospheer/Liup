@@ -4,7 +4,10 @@
  *
  * Also provides RDSEED support for near-ITS randomness.
  *
- * Compile: gcc -O3 -march=native -shared -fPIC -lm -o _fastrand.so _fastrand.c
+ * Compile: gcc -O3 -march=x86-64 -mpopcnt -shared -fPIC -lm -o _fastrand.so _fastrand.c
+ *
+ * NOTE: Do NOT use -march=native — the resulting binary is not portable
+ * and will SIGILL on CPUs lacking the compile host's instruction set.
  *
  * API:  int batch_gaussian(double *out, int total)
  *       Fills out[0..total-1] with IID N(0,1) samples.

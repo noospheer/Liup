@@ -38,6 +38,21 @@ try:
     _fastrand_lib.toeplitz_extract.argtypes = [
         _ctypes.c_void_p, _ctypes.c_int,
         _ctypes.c_void_p, _ctypes.c_void_p]
+    # Probe batch_gaussian in a subprocess to detect SIGILL from
+    # binaries compiled with unsupported instruction sets (e.g.
+    # -march=native on a different CPU).
+    import subprocess as _sp
+    _probe = _sp.run(
+        ['python3', '-c',
+         'import ctypes,numpy;'
+         'L=ctypes.CDLL(%r);'
+         'L.batch_gaussian.restype=ctypes.c_int;'
+         'L.batch_gaussian.argtypes=[ctypes.c_void_p,ctypes.c_int];'
+         'b=numpy.empty(2,dtype=numpy.float64);'
+         'L.batch_gaussian(b.ctypes.data,2)' % _so_path],
+        timeout=5, capture_output=True)
+    if _probe.returncode != 0:
+        raise OSError("_fastrand.so probe failed (likely SIGILL)")
     _has_rdseed = bool(_fastrand_lib.has_rdseed())
 except (OSError, AttributeError):
     _fastrand_lib = None
