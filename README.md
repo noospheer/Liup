@@ -849,6 +849,8 @@ Some of the residual gap is likely inherent to ITS (true randomness generation, 
 ```
 liuproto/
   link.py            Protocol implementation (signbit_nopa, signbit_its, parallel_its)
+  stream.py          Streaming OTP engine (AuthCipher, StreamPhysics, StreamServer/Client)
+  wire.py            Compact binary wire format codec for streaming exchanges
   _fastrand.c        C extension: Box-Muller, RDSEED, Toeplitz extraction
   _fastrand.so       Compiled shared library (gcc -O3 -march=native)
   endpoint.py        Physics simulation (Gaussian noise, modular reduction)
@@ -856,6 +858,7 @@ liuproto/
   privacy.py         Toeplitz hashing (GF(2) block PA)
   leakage.py         HMM forward algorithm, min-entropy estimation
   reconciliation.py  Error correction (not needed for signbit modes)
+  storage.py         XML serialization for test/debug
 ```
 
 ---
