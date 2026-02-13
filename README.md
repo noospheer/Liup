@@ -259,6 +259,8 @@ The ITS guarantee requires exactly two assumptions:
 
 No lattice hardness, no factoring, no random oracles. The protocol has zero computational assumptions beyond the randomness source.
 
+For decentralized PSK establishment, ITS digital signatures, and network-scale key management built on top of this protocol, see **[Liun](https://github.com/noospheer/Liun)**.
+
 ---
 
 ## 5. Getting Started
@@ -1007,6 +1009,8 @@ The protocol assumes:
 ### 8.4 Pre-Shared Key Requirement
 
 This protocol requires a pre-shared key (~12.5 KB) established through an out-of-band authenticated channel (in-person exchange, trusted courier, or computational crypto during a trusted setup phase).
+
+**Decentralized PSK establishment: [Liun](https://github.com/noospheer/Liun)**. The companion protocol Liun eliminates the need for manual PSK exchange by establishing PSKs over the network itself. Liun uses multi-path bootstrap (Shamir-encoded shares over geographically diverse TCP routes) to establish initial shared secrets, then expands the network via peer introduction over ITS channels. Once bootstrapped, Liun provides decentralized ITS digital signatures (threshold USS), Sybil resistance (personalized PageRank), and continuous PSK renewal — all built on Liu key material. The PSK requirement shifts from "exchange a USB stick" to "connect to the internet for 5 minutes."
 
 **Note on QKD**: QKD is sometimes described as bootstrapping key agreement "from scratch," but this is imprecise. QKD's post-processing (basis reconciliation, error estimation, privacy amplification) requires an **authenticated classical channel**, which itself needs either a pre-shared key (for an ITS MAC) or computational assumptions (e.g. public-key signatures, which break the ITS guarantee). In practice, most deployed QKD systems use a small pre-shared key for initial authentication, then reserve part of each session's output to authenticate the next. The difference is quantitative, not qualitative: QKD needs a shorter initial seed than this protocol, but neither achieves ITS key agreement from zero shared state.
 
