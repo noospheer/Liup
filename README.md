@@ -1,3 +1,15 @@
+> **⚠ This repository is the protocol specification and reference material.**
+> **For the production Rust implementation, see [noospheer/Liun](https://github.com/noospheer/Liun).**
+>
+> Liun implements the Liup protocol with:
+> - Pipeline courier (self-rekeying OTP, 69 Mbps over real internet)
+> - Multi-backend TRNG (RDSEED, RNDR, trandom, auto-detect)
+> - Lean 4 proofs (31 files, zero sorry, including chain induction)
+> - Kademlia DHT, k-path relay bootstrap, public-goods ETH funding pool
+> - 250 Rust tests + 16 Solidity forge tests
+
+---
+
 Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above notice, this list of conditions and the following disclaimer.
