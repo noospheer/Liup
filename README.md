@@ -1,7 +1,7 @@
 > **⚠ This repository is the protocol specification and reference material.**
-> **For the production Rust implementation, see [noospheer/noo](https://github.com/noospheer/noo).**
+> **For the production Rust implementation, see [noo-nodespheer/noo-node](https://github.com/noospheer/noo-node).**
 >
-> noo implements the Liup protocol with:
+> noo-node implements the Liup protocol with:
 > - Pipeline courier (self-rekeying OTP, 69 Mbps over real internet)
 > - Multi-backend TRNG (RDSEED, RNDR, trandom, auto-detect)
 > - Lean 4 proofs (31 files, zero sorry, including chain induction)
@@ -271,7 +271,7 @@ The ITS guarantee requires exactly two assumptions:
 
 No lattice hardness, no factoring, no random oracles. The protocol has zero computational assumptions beyond the randomness source.
 
-For decentralized PSK establishment, ITS digital signatures, and network-scale key management built on top of this protocol, see **[noo](https://github.com/noospheer/noo)**.
+For decentralized PSK establishment, ITS digital signatures, and network-scale key management built on top of this protocol, see **[noo-node](https://github.com/noo-nodespheer/noo-node)**.
 
 ---
 
@@ -1022,7 +1022,7 @@ The protocol assumes:
 
 This protocol requires a pre-shared key (~12.5 KB) established through an out-of-band authenticated channel (in-person exchange, trusted courier, or computational crypto during a trusted setup phase).
 
-**Decentralized PSK establishment: [noo](https://github.com/noospheer/noo)**. The companion protocol noo eliminates the need for manual PSK exchange by establishing PSKs over the network itself. noo uses multi-path bootstrap (Shamir-encoded shares over geographically diverse TCP routes) to establish initial shared secrets, then expands the network via peer introduction over ITS channels. Once bootstrapped, noo provides decentralized ITS digital signatures (threshold USS), Sybil resistance (personalized PageRank), and continuous PSK renewal — all built on Liu key material. The PSK requirement shifts from "exchange a USB stick" to "connect to the internet for 5 minutes."
+**Decentralized PSK establishment: [noo-node](https://github.com/noo-nodespheer/noo-node)**. The companion protocol noo-node eliminates the need for manual PSK exchange by establishing PSKs over the network itself. noo-node uses multi-path bootstrap (Shamir-encoded shares over geographically diverse TCP routes) to establish initial shared secrets, then expands the network via peer introduction over ITS channels. Once bootstrapped, noo-node provides decentralized ITS digital signatures (threshold USS), Sybil resistance (personalized PageRank), and continuous PSK renewal — all built on Liu key material. The PSK requirement shifts from "exchange a USB stick" to "connect to the internet for 5 minutes."
 
 **Note on QKD**: QKD is sometimes described as bootstrapping key agreement "from scratch," but this is imprecise. QKD's post-processing (basis reconciliation, error estimation, privacy amplification) requires an **authenticated classical channel**, which itself needs either a pre-shared key (for an ITS MAC) or computational assumptions (e.g. public-key signatures, which break the ITS guarantee). In practice, most deployed QKD systems use a small pre-shared key for initial authentication, then reserve part of each session's output to authenticate the next. The difference is quantitative, not qualitative: QKD needs a shorter initial seed than this protocol, but neither achieves ITS key agreement from zero shared state.
 
