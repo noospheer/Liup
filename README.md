@@ -1,5 +1,5 @@
 > **⚠ This repository is the protocol specification and reference material.**
-> **For the production Rust implementation, see [noo-nodespheer/noo-node](https://github.com/noospheer/noo-node).**
+> **For the production Rust implementation, see [noospheer/noo-node](https://github.com/noospheer/noo-node).**
 >
 > noo-node implements the Liup protocol with:
 > - Pipeline courier (self-rekeying OTP, 69 Mbps over real internet)
